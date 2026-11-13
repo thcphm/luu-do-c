@@ -8,6 +8,7 @@ window.FC = (() => {
     io: ['#a9a4f5', 'rgba(169,164,245,.13)'],
     proc: ['#4fdcff', 'rgba(79,220,255,.10)'],
     dec: ['#f2c879', 'rgba(242,200,121,.12)'],
+    sub: ['#9fd3ff', 'rgba(159,211,255,.10)'],
     text: '#dfe8f3', edge: '#c9d6e8', bg: '#0a1220', yes: '#86e28a', no: '#f2c879', sel: '#4fdcff'
   };
   const LIGHT = {
@@ -15,6 +16,7 @@ window.FC = (() => {
     io: ['#5b54c9', '#f1f0fd'],
     proc: ['#1a7fa3', '#eaf8fd'],
     dec: ['#b37a0c', '#fdf6e6'],
+    sub: ['#2d6fa3', '#eef5fc'],
     text: '#14202e', edge: '#3a4a60', bg: '#ffffff', yes: '#2e8f47', no: '#b05a0c', sel: '#1a7fa3'
   };
 
@@ -30,6 +32,7 @@ window.FC = (() => {
     if (n.type === 'dec') { w = Math.max(150, w0 * 2 + 24); h = Math.max(76, h0 * 2 + 28); }
     else if (n.type === 'io') { w = Math.max(150, w0 + SLANT * 2 + 32); h = Math.max(48, h0 + 24); }
     else if (n.type === 'term') { w = Math.max(120, w0 + 48); h = Math.max(44, h0 + 22); }
+    else if (n.type === 'sub') { w = Math.max(170, w0 + 52); h = Math.max(48, h0 + 24); }
     else { w = Math.max(150, w0 + 32); h = Math.max(48, h0 + 24); }
     return { w: Math.round(w / 2) * 2, h: Math.round(h / 2) * 2 };
   }
@@ -179,7 +182,7 @@ window.FC = (() => {
       const w = B.w / 2, h = B.h / 2;
       let shape;
       if (n.type === 'term') shape = el('rect', { x: -w, y: -h, width: B.w, height: B.h, rx: h });
-      else if (n.type === 'proc') shape = el('rect', { x: -w, y: -h, width: B.w, height: B.h, rx: 4 });
+      else if (n.type === 'proc' || n.type === 'sub') shape = el('rect', { x: -w, y: -h, width: B.w, height: B.h, rx: 4 });
       else if (n.type === 'io') shape = el('polygon', { points: `${-w + SLANT},${-h} ${w},${-h} ${w - SLANT},${h} ${-w},${h}` });
       else shape = el('polygon', { points: `0,${-h} ${w},0 0,${h} ${-w},0` });
       shape.setAttribute('fill', fl);
@@ -187,6 +190,7 @@ window.FC = (() => {
       shape.setAttribute('stroke-width', 2);
       shape.setAttribute('class', 'shape');
       g.append(shape);
+      if (n.type === 'sub') for (const vx of [-w + 11, w - 11]) g.append(el('line', { x1: vx, y1: -h, x2: vx, y2: h, stroke: st, 'stroke-width': 2 }));
       const ls = linesOf(n);
       const empty = !String(n.text ?? '').trim();
       ls.forEach((line, i) => {

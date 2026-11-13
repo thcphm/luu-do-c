@@ -49,7 +49,7 @@
   function miniShape(type) {
     const svg = document.createElementNS(NS, 'svg');
     svg.classList.add('chart');
-    const text = { term: 'Bắt đầu', io: 'Nhập a', proc: 'x = a + 1', dec: 'a > b' }[type];
+    const text = { term: 'Bắt đầu', io: 'Nhập a', proc: 'x = a + 1', dec: 'a > b', sub: 'kq = f(a)' }[type];
     const m = { nodes: [{ id: 'm', type, x: 0, y: 0, text }], edges: [] };
     FC.render(svg, m, {});
     FC.fit(svg, m, 6);
@@ -93,7 +93,7 @@
     let h = `<h1>${esc(L.title)}</h1><div class="lead">${L.body.map(p => `<p>${fmt(p)}</p>`).join('')}</div>`;
     if (L.shapes) {
       h += '<table class="shape-table"><tbody>';
-      for (const k of ['term', 'io', 'proc', 'dec']) {
+      for (const k of ['term', 'io', 'proc', 'dec', 'sub']) {
         const S = SHAPES[k];
         h += `<tr><td data-shape="${k}"></td><td><b>${esc(S.name)}</b><br><span class="muted">${esc(S.look)}</span><br>Trong C: <code>${esc(S.c)}</code><br><span class="small">${esc(S.tip)}</span></td></tr>`;
       }
@@ -235,23 +235,38 @@
     if (!r) { out.innerHTML = ''; toast('Hãy dán đề bài vào ô trước.'); $('#deBai').focus(); return; }
     lastAna = r;
     const li = arr => arr.length ? `<ul>${arr.map(x => `<li>${fmt(x)}</li>`).join('')}</ul>` : '<p class="muted">Không có.</p>';
+    const IC = { ok: '✓', warn: '!', bad: '✕', info: 'i' };
     let h = r.pattern
       ? `<span class="badge ok">Nhận ra dạng bài: ${esc(r.pattern)}</span>`
       : `<span class="badge warn">Chưa nhận ra dạng bài quen thuộc, đây là khung gợi ý</span>`;
-    h += `<div class="ana-grid">
+    h += `<div class="card read"><h3>Bước 1. Đọc đề</h3>
+      <p class="hl-text">${r.highlight.map(g => g.c ? `<mark class="hl-${g.c}">${esc(g.t)}</mark>` : esc(g.t)).join('')}</p>
+      <p class="legend small"><mark class="hl-in">Nhập</mark><mark class="hl-out">Xuất / câu hỏi</mark><mark class="hl-cond">Điều kiện</mark><mark class="hl-loop">Lặp</mark><mark class="hl-data">Mảng, hàm, struct, switch</mark><mark class="hl-rule">Ràng buộc</mark></p></div>`;
+    h += `<h2 class="step-h">Bước 2. Tách đề</h2><div class="ana-grid">
       <div class="card given"><h3>Đề cho gì (đầu vào)</h3>${li(r.given)}</div>
       <div class="card asked"><h3>Đề hỏi gì (đầu ra)</h3>${li(r.asked)}</div>
+      <div class="card"><h3>Biến dùng trong lưu đồ</h3>${li(r.vars)}</div>
+      <div class="card rule"><h3>Ràng buộc trong đề</h3>${r.rules.length ? li(r.rules) : '<p class="muted">Đề không nêu giới hạn dữ liệu.</p>'}</div>
+    </div>`;
+    h += `<h2 class="step-h">Bước 3. Tìm nhánh và vòng lặp</h2><div class="ana-grid">
       <div class="card branch"><h3>Các nhánh (khối thoi)</h3>${li(r.branches)}</div>
       <div class="card loop"><h3>Có lặp không</h3>${r.loops.length ? li(r.loops) : '<p class="muted">Không cần vòng lặp.</p>'}</div>
     </div>`;
-    if (r.found.length) h += `<div class="card" style="margin-top:14px"><h3>Từ khóa tìm thấy trong đề</h3>${li(r.found)}</div>`;
+    if (r.funcs.length) h += `<div class="card" style="margin-top:14px"><h3>Hàm</h3>${li(r.funcs.map(f => `${f.name}(${f.params.join(', ')}): ${f.ret ? 'có trả về (' + f.ret + ')' : 'không trả về (void)'}`))}</div>`;
+    if (r.table) h += `<div class="card" style="margin-top:14px"><h3>Bảng mốc đọc từ đề</h3><div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Kết quả</th><th>Trong đề ghi</th><th>Khoảng điểm</th><th>Khối thoi so</th></tr></thead>
+      <tbody>${r.table.map(t => `<tr><td>${esc(t.name)}</td><td>${esc(t.raw)}</td><td>${esc(t.range)}</td><td><code>${esc(t.block)}</code></td></tr>`).join('')}</tbody></table></div></div>`;
+    if (r.checks.length) h += `<div class="card" style="margin-top:14px"><h3>Soát lại đề</h3><ul class="issues">${r.checks.map(c => `<li class="${c.lv}"><span class="ic">${IC[c.lv]}</span>${esc(c.msg)}</li>`).join('')}</ul></div>`;
+    if (r.found.length) h += `<div class="card" style="margin-top:14px"><h3>Câu chữ trong đề → khối</h3>${li(r.found)}</div>`;
     if (r.note) h += `<p class="note" style="margin-top:14px">${fmt(r.note)}</p>`;
-    h += `<div class="pair">
+    h += `<h2 class="step-h">Bước 4. Vẽ lưu đồ</h2><div class="pair">
       <div class="card"><h3>Hướng vẽ từng bước</h3><ol class="howto">${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol></div>
       <div class="card"><h3>Lưu đồ gợi ý</h3><svg class="chart" id="anaChart"></svg>
         <div class="row"><button class="primary" id="anaOpen">Mở trong Bảng vẽ để sửa</button></div></div>
     </div>`;
-    if (r.code) h += `<details class="card"><summary>Xem code C gợi ý (nên tự viết trước rồi mới xem)</summary><pre class="code">${codeHtml(r.code)}</pre></details>`;
+    if (r.tests.length) h += `<h2 class="step-h">Bước 5. Chạy thử lưu đồ</h2><div class="card"><p class="small muted">Đi theo lưu đồ gợi ý với từng bộ dữ liệu. Tự dò lưu đồ của bạn xem có ra cùng kết quả không.</p>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nhập</th><th>Đi qua</th><th>Kết quả in ra</th></tr></thead>
+      <tbody>${r.tests.map(t => `<tr><td><code>${esc(t.input)}</code></td><td class="small">${esc(t.path.join(' → ') || 'thẳng xuống')}</td><td>${t.output.map(esc).join('<br>') || '<span class="muted">(không in gì)</span>'}</td></tr>`).join('')}</tbody></table></div></div>`;
     out.innerHTML = h;
     const svg = $('#anaChart');
     FC.render(svg, r.chart, {});
@@ -303,7 +318,7 @@
 
   function defaultText(type) {
     if (type === 'term') return model.nodes.some(n => n.type === 'term' && /bắt đầu/i.test(n.text)) ? 'Kết thúc' : 'Bắt đầu';
-    return { io: 'Nhập a', proc: 'x = a + 1', dec: 'a > b' }[type];
+    return { io: 'Nhập a', proc: 'x = a + 1', dec: 'a > b', sub: 'kq = tenHam(a)' }[type];
   }
   function canGoOut(n) {
     const o = outs(n.id).length;
@@ -518,7 +533,7 @@
   });
 
   // ---- Bảng bên phải ----
-  const COLOR = { term: 'var(--terminal)', io: 'var(--amp)', proc: 'var(--brand)', dec: 'var(--lamp)' };
+  const COLOR = { term: 'var(--terminal)', io: 'var(--amp)', proc: 'var(--brand)', dec: 'var(--lamp)', sub: 'var(--desk)' };
   function renderPanel() {
     const p = $('#panel');
     let h = '';
@@ -587,11 +602,13 @@
     const N = model.nodes;
     const name = n => `"${String(n.text).replace(/\n/g, ' ').trim() || '(trống)'}"`;
     if (!N.length) add('bad', 'Bảng vẽ trống. Hãy thêm khối Bắt đầu.');
-    const starts = N.filter(n => n.type === 'term' && /bắt đầu|bat dau|begin|start/i.test(n.text));
-    const ends = N.filter(n => n.type === 'term' && /kết thúc|ket thuc|end|stop/i.test(n.text));
+    const starts = N.filter(n => n.type === 'term' && /^\s*(bắt đầu|bat dau|begin|start)/i.test(n.text));
+    const ends = N.filter(n => n.type === 'term' && /kết thúc|ket thuc|end|stop|trả về|tra ve|return/i.test(n.text));
     if (N.length) {
       if (!starts.length) add('bad', 'Chưa có khối Bắt đầu (hình viên thuốc ghi "Bắt đầu").');
-      if (starts.length > 1) starts.slice(1).forEach(n => add('bad', 'Chỉ được có 1 khối Bắt đầu.', n.id));
+      // Lưu đồ chính có 1 khối "Bắt đầu"; mỗi hàm có thêm 1 khối "Bắt đầu tênHàm(...)".
+      const plainStarts = starts.filter(n => /^\s*(bắt đầu|bat dau|begin|start)\s*$/i.test(n.text));
+      if (plainStarts.length > 1) plainStarts.slice(1).forEach(n => add('bad', 'Lưu đồ chính chỉ có 1 khối Bắt đầu. Lưu đồ của hàm ghi "Bắt đầu tênHàm(...)".', n.id));
       if (!ends.length) add('bad', 'Chưa có khối Kết thúc.');
     }
     for (const n of N) {
@@ -620,6 +637,8 @@
         if (o.length > 1) add('bad', `Khối ${name(n)} có ${o.length} mũi tên ra. Muốn rẽ nhánh hãy dùng khối Điều kiện (thoi).`, n.id);
       }
       if (n.type === 'proc' && /printf|scanf|\bnhập\b|\bxuất\b|\bin ra\b/i.test(n.text)) add('warn', `${name(n)} là nhập/xuất, nên dùng hình bình hành.`, n.id);
+      if (n.type === 'proc' && /^\s*([\w.]+\s*=\s*)?[A-Za-z_]\w*\s*\([^)]*\)\s*$/.test(n.text) && !/sqrt|abs|pow/.test(n.text)) add('warn', `${name(n)} là gọi hàm, nên dùng khối Gọi hàm (chữ nhật 2 vạch đứng).`, n.id);
+      if (n.type === 'sub' && !/\(/.test(n.text)) add('warn', `Khối gọi hàm ${name(n)} nên ghi tên hàm kèm ngoặc, ví dụ kq = giaiThua(n).`, n.id);
       if (n.type === 'proc' && /^\s*(if|while|for|nếu)\b/i.test(n.text)) add('warn', `${name(n)} là điều kiện, nên dùng hình thoi.`, n.id);
       if (n.type === 'io' && !/^\s*(nhập|xuất|in|đọc|ghi|hiển thị|printf|scanf|input|output|print)/i.test(n.text)) add('warn', `Khối Nhập/Xuất ${name(n)} nên bắt đầu bằng "Nhập" hoặc "Xuất".`, n.id);
     }

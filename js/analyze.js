@@ -4,10 +4,24 @@ window.Analyzer = (() => {
   // ---------- Câu lệnh của "chương trình có cấu trúc" ----------
   const io = text => ({ t: 'io', text });
   const pr = text => ({ t: 'proc', text });
+  const SUB = text => ({ t: 'sub', text }); // gọi hàm: khối chữ nhật 2 vạch đứng
+  const simple = s => s.t === 'io' || s.t === 'proc' || s.t === 'sub';
   const IF = (cond, yes, no = []) => ({ t: 'if', cond, yes, no });
   const WHILE = (cond, body) => ({ t: 'while', cond, body });
   const FOR = (init, cond, step, body) => ({ t: 'for', init, cond, step, body });
   const DO = (body, cond) => ({ t: 'do', body, cond });
+  // switch (expr) { case v: ...; default: ... }. Mỗi case có thể gộp nhiều giá trị: { vals: [1, 3], body }.
+  const SWITCH = (expr, cases, def = []) => ({ t: 'switch', expr, cases, def });
+  const caseCond = (expr, vals) => vals.map(v => `${expr} == ${v}`).join(' || ');
+  const caseLabel = (expr, vals) => vals.length === 1 ? `${expr} == ${vals[0]}`
+    : `${expr} == ` + vals.reduce((a, v, i) => a + (i ? (i % 4 ? ', ' : ',\n') : '') + v, '');
+  function swIf(s) {
+    let tail = s.def;
+    for (let i = s.cases.length - 1; i >= 0; i--) tail = [IF(caseLabel(s.expr, s.cases[i].vals), s.cases[i].body, tail)];
+    return tail[0] || IF(`${s.expr} == ${s.expr}`, [], []);
+  }
+  // Các danh sách lệnh con của một câu lệnh (dùng khi duyệt cây).
+  const kids = s => s.t === 'if' ? [s.yes, s.no] : s.t === 'switch' ? [...s.cases.map(c => c.body), s.def] : s.body ? [s.body] : [];
 
   // Bỏ dấu, giữ nguyên độ dài để vị trí khớp với đề gốc.
   const strip = s => [...s].map(ch => {
@@ -63,24 +77,26 @@ window.Analyzer = (() => {
     return { conds, last, off, w: 2 * (off + yw / 2) + 60 };
   }
   function swidth(s) {
-    if (s.t === 'io' || s.t === 'proc') return sz(s.t, s.text).w;
+    if (s.t === 'switch') s = swIf(s);
+    if (simple(s)) return sz(s.t, s.text).w;
     if (isChain(s)) return chainGeo(s).w;
     if (s.t === 'if') return ifOff(s).w;
     if (s.t === 'for') return Math.max(sz('proc', s.init).w, sz('dec', s.cond).w, width(s.body), sz('proc', s.step).w) + 90;
     return Math.max(sz('dec', s.cond).w, width(s.body)) + 90;
   }
 
-  function build(prog) {
+  function build(prog, opt = {}) {
+    const P = opt.prefix || 'g';
     const nodes = [], edges = [];
     let k = 0;
     const add = (type, text, x, y) => {
-      const n = { id: 'g' + (++k), type, text, x: Math.round(x), y: Math.round(y + sz(type, text).h / 2) };
+      const n = { id: P + (++k), type, text, x: Math.round(x), y: Math.round(y + sz(type, text).h / 2) };
       nodes.push(n);
       return n;
     };
     const link = (exits, to, extra = {}) => {
       for (const ex of exits) {
-        const e = { id: 'ge' + (++k), from: ex.from, to };
+        const e = { id: P + 'e' + (++k), from: ex.from, to };
         if (ex.label) e.label = ex.label;
         if (ex.fs) { e.fs = ex.fs; e.ts = ex.ts; }
         Object.assign(e, extra);
@@ -88,8 +104,9 @@ window.Analyzer = (() => {
       }
     };
     function place(list, x, y, exits) {
-      for (const s of list) {
-        if (s.t === 'io' || s.t === 'proc') {
+      for (let s of list) {
+        if (s.t === 'switch') s = swIf(s); // switch vẽ thành chuỗi khối thoi "biến == giá trị"
+        if (simple(s)) {
           const n = add(s.t, s.text, x, y);
           link(exits, n.id);
           exits = [{ from: n.id }];
@@ -104,7 +121,7 @@ window.Analyzer = (() => {
             link(exits, d.id);
             let yy = y, hh = dh;
             const f = c.yes[0];
-            if (f && (f.t === 'io' || f.t === 'proc')) yy = y + dh / 2 - sz(f.t, f.text).h / 2;
+            if (f && simple(f)) yy = y + dh / 2 - sz(f.t, f.text).h / 2;
             const r = c.yes.length ? place(c.yes, x + g.off, yy, [{ from: d.id, label: 'Đúng' }]) : { exits: [{ from: d.id, label: 'Đúng' }], y: yy };
             hh = Math.max(dh, r.y - GAP - y);
             done.push(...r.exits.map(ex => ({ ...ex, fs: 'right', ts: 'right' })));
@@ -152,9 +169,10 @@ window.Analyzer = (() => {
       }
       return { exits, y };
     }
-    const st = add('term', 'Bắt đầu', 0, 0);
-    const r = place(prog, 0, sz('term', 'Bắt đầu').h + GAP, [{ from: st.id }]);
-    const end = add('term', 'Kết thúc', 0, r.y);
+    const sText = opt.start || 'Bắt đầu', eText = opt.end || 'Kết thúc';
+    const st = add('term', sText, 0, 0);
+    const r = place(prog, 0, sz('term', sText).h + GAP, [{ from: st.id }]);
+    const end = add('term', eText, 0, r.y);
     link(r.exits, end.id);
     return { nodes, edges };
   }
@@ -163,15 +181,24 @@ window.Analyzer = (() => {
   const short = t => t.replace(/\n/g, '; ');
   function brief(list) {
     if (!list.length) return 'đi tiếp';
-    return list.map(s => s.t === 'io' || s.t === 'proc' ? short(s.text) : s.t === 'if' ? `xét tiếp "${s.cond}"` : 'lặp').join(', ');
+    return list.map(s => simple(s) ? short(s.text) : s.t === 'if' ? `xét tiếp "${s.cond}"` : s.t === 'switch' ? `switch theo ${s.expr}` : 'lặp').join(', ');
   }
-  function steps(prog) {
-    const out = ['Vẽ khối Bắt đầu (hình viên thuốc).'];
+  function steps(prog, opt = {}) {
+    const out = [`Vẽ khối ${opt.start ? '"' + opt.start + '"' : 'Bắt đầu'} (hình viên thuốc).`];
     const walk = (list, pre) => {
       for (const s of list) {
         if (s.t === 'io') out.push(`${pre}Khối Nhập/Xuất (bình hành): ${short(s.text)}.`);
         else if (s.t === 'proc') out.push(`${pre}Khối Xử lý (chữ nhật): ${short(s.text)}.`);
-        else if (isChain(s)) {
+        else if (s.t === 'sub') out.push(`${pre}Khối Gọi hàm (chữ nhật có 2 vạch đứng): ${short(s.text)}.`);
+        else if (s.t === 'switch') {
+          out.push(`${pre}switch (${s.expr}): lưu đồ không có hình riêng cho switch, vẽ thành ${s.cases.length} khối thoi xếp dọc:`);
+          s.cases.forEach((c, i) => {
+            out.push(`${pre}   Khối thoi ${i + 1}: ${short(caseLabel(s.expr, c.vals))} ?  (case ${c.vals.join(', case ')})`);
+            out.push(`${pre}      → Đúng (rẽ phải): ${brief(c.body)}, rồi break (nhảy ra cuối switch).`);
+            out.push(`${pre}      → Sai (đi xuống): ${i < s.cases.length - 1 ? 'tới khối thoi ' + (i + 2) : s.def.length ? 'default: ' + brief(s.def) : 'ra khỏi switch'}.`);
+          });
+          out.push(`${pre}   Các nhánh gom về một đường rồi đi tiếp.`);
+        } else if (isChain(s)) {
           const { conds, last } = chainOf(s);
           out.push(`${pre}Xếp ${conds.length} khối Điều kiện (thoi) thành một cột dọc, xét từ trên xuống:`);
           conds.forEach((c, i) => {
@@ -203,7 +230,7 @@ window.Analyzer = (() => {
       }
     };
     walk(prog, '');
-    out.push('Vẽ khối Kết thúc.');
+    out.push(`Vẽ khối ${opt.end ? '"' + opt.end + '"' : 'Kết thúc'}.`);
     return out;
   }
   function branches(prog) {
@@ -212,8 +239,11 @@ window.Analyzer = (() => {
       for (const s of list) {
         if (s.t === 'if') {
           out.push(`Nếu ${s.cond} → ${brief(s.yes)}` + (s.no.length ? `; ngược lại → ${brief(s.no)}` : '; ngược lại → bỏ qua'));
-          walk(s.yes); walk(s.no);
-        } else if (s.body) walk(s.body);
+        } else if (s.t === 'switch') {
+          s.cases.forEach(c => out.push(`case ${c.vals.join(', ')} (${short(caseLabel(s.expr, c.vals))}) → ${brief(c.body)}`));
+          out.push(`default (không khớp case nào) → ${s.def.length ? brief(s.def) : 'bỏ qua'}`);
+        }
+        kids(s).forEach(walk);
       }
     };
     walk(prog);
@@ -226,8 +256,7 @@ window.Analyzer = (() => {
         if (s.t === 'for') out.push(`Vòng lặp for: ${s.init}; lặp khi ${s.cond}; mỗi vòng ${s.step}.`);
         if (s.t === 'while') out.push(`Vòng lặp while: lặp khi ${s.cond}.`);
         if (s.t === 'do') out.push(`Vòng lặp do-while: làm trước, lặp lại khi ${s.cond}.`);
-        if (s.t === 'if') { walk(s.yes); walk(s.no); }
-        else if (s.body) walk(s.body);
+        kids(s).forEach(walk);
       }
     };
     walk(prog);
@@ -242,16 +271,30 @@ window.Analyzer = (() => {
     const walk = list => {
       for (const s of list) {
         if (s.t === 'io') { const m = s.text.match(/^(Nhập|Xuất)\s+(.*)$/s); if (m) vs.push(...ids(m[2])); }
-        else if (s.t === 'proc') vs.push(...ids(s.text));
+        else if (s.t === 'proc' || s.t === 'sub') vs.push(...ids(s.text));
         else {
           if (s.cond) vs.push(...ids(s.cond));
+          if (s.expr) vs.push(...ids(s.expr));
           if (s.init) vs.push(...ids(s.init), ...ids(s.step));
-          walk(s.yes || []); walk(s.no || []); walk(s.body || []);
+          kids(s).forEach(walk);
         }
       }
     };
     walk(prog);
     return uniq(vs);
+  }
+  // Tên mảng: biến đứng ngay trước dấu [ , ví dụ a[i].
+  function arraysOf(prog) {
+    const out = new Set();
+    const scan = t => { for (const m of String(t || '').replace(/"[^"]*"/g, '').matchAll(/([A-Za-z_]\w*)\s*\[/g)) out.add(m[1]); };
+    const walk = list => {
+      for (const s of list) {
+        scan(s.text); scan(s.cond); scan(s.expr); scan(s.init); scan(s.step);
+        kids(s).forEach(walk);
+      }
+    };
+    walk(prog);
+    return out;
   }
   function splitItems(s) {
     const out = []; let cur = '', q = false;
@@ -262,59 +305,6 @@ window.Analyzer = (() => {
     if (cur.trim()) out.push(cur.trim());
     return out;
   }
-  function toC(prog, floats = []) {
-    const fl = new Set(floats);
-    const isF = expr => (expr.match(/[A-Za-z_]\w*/g) || []).some(v => fl.has(v)) || /\d\.\d/.test(expr);
-    const lines = [];
-    const emitIf = (s, ind, lead) => {
-      const p = '    '.repeat(ind);
-      lines.push(`${lead ?? p}if (${s.cond}) {`);
-      emit(s.yes, ind + 1);
-      if (s.no.length === 1 && s.no[0].t === 'if') { emitIf(s.no[0], ind, `${p}} else `); return; }
-      if (s.no.length) { lines.push(`${p}} else {`); emit(s.no, ind + 1); }
-      lines.push(`${p}}`);
-    };
-    const emit = (list, ind) => {
-      const p = '    '.repeat(ind);
-      for (const s of list) {
-        if (s.t === 'io') {
-          const m = s.text.match(/^(Nhập|Xuất)\s+(.*)$/s);
-          if (!m) { lines.push(p + '// ' + s.text); continue; }
-          const items = splitItems(m[2]);
-          if (m[1] === 'Nhập') {
-            lines.push(`${p}scanf("${items.map(v => fl.has(v) ? '%f' : '%d').join(' ')}", ${items.map(v => '&' + v).join(', ')});`);
-          } else {
-            let f = '', args = [];
-            for (const it of items) {
-              if (it.startsWith('"')) f += strip(it.slice(1, -1)).replace(/"/g, '') + ' ';
-              else { f += (isF(it) ? '%.2f' : '%d') + ' '; args.push(it); }
-            }
-            lines.push(`${p}printf("${f.trim()}\\n"${args.map(a => ', ' + a).join('')});`);
-          }
-        } else if (s.t === 'proc') {
-          for (const l of s.text.split('\n')) lines.push(p + l.trim() + ';');
-        } else if (s.t === 'if') {
-          emitIf(s, ind);
-        } else if (s.t === 'while') {
-          lines.push(`${p}while (${s.cond}) {`); emit(s.body, ind + 1); lines.push(`${p}}`);
-        } else if (s.t === 'for') {
-          lines.push(`${p}for (${s.init}; ${s.cond}; ${s.step}) {`); emit(s.body, ind + 1); lines.push(`${p}}`);
-        } else if (s.t === 'do') {
-          lines.push(`${p}do {`); emit(s.body, ind + 1); lines.push(`${p}} while (${s.cond});`);
-        }
-      }
-    };
-    emit(prog, 1);
-    const vars = collectVars(prog);
-    const ints = vars.filter(v => !fl.has(v)), fls = vars.filter(v => fl.has(v));
-    const head = ['#include <stdio.h>'];
-    if (/sqrt|fabs|pow\(/.test(lines.join('\n'))) head.push('#include <math.h>');
-    const decl = [];
-    if (ints.length) decl.push(`    int ${ints.join(', ')};`);
-    if (fls.length) decl.push(`    float ${fls.join(', ')};`);
-    return [...head, '', 'int main() {', ...decl, ...lines, '    return 0;', '}'].join('\n');
-  }
-
   // ---------- Các dạng bài quen thuộc ----------
   const pick = (vs, n, def) => (vs.length >= n ? vs.slice(0, n) : def);
   const has = (p, re) => re.test(p);
@@ -340,15 +330,547 @@ window.Analyzer = (() => {
       const L = expr.slice(0, at).match(new RegExp(`(${NUM})\\s*(${OP})\\s*$`));
       const R = expr.slice(at + 4).match(new RegExp(`^\\s*(${OP})\\s*(${NUM})`));
       const num = s => parseFloat(s.replace(',', '.'));
-      let low = null;
-      if (L) { const op = norm(L[2]); if (op === '<=') low = { op: '>=', n: num(L[1]) }; else if (op === '<') low = { op: '>', n: num(L[1]) }; }
-      if (R) { const op = norm(R[1]); if (op === '>=' || op === '>') low = { op, n: num(R[2]) }; }
-      if (!out.some(t => t.name === name)) out.push({ name, low });
+      let low = null, hi = null;
+      if (L) {
+        const op = norm(L[2]), n = num(L[1]);
+        if (op === '<=') low = { op: '>=', n }; else if (op === '<') low = { op: '>', n };
+        else if (op === '>') hi = { op: '<', n }; else if (op === '>=') hi = { op: '<=', n };
+      }
+      if (R) {
+        const op = norm(R[1]), n = num(R[2]);
+        if (op === '>=' || op === '>') low = { op, n }; else hi = { op, n };
+      }
+      const st = m.index + m[0].length - m[2].length;
+      const raw = orig.substr(st, m[2].length).trim();
+      if (!out.some(t => t.name === name)) out.push({ name, low, hi, raw });
     }
     return out;
   }
 
+  // ---------- Xếp loại điểm theo mốc trong đề ----------
+  const numOf = s => parseFloat(String(s).replace(',', '.'));
+  function scoreRange(p) {
+    const m = p.match(/\(\s*(\d+(?:[.,]\d+)?)\s*(?:-|–|den|toi)\s*(\d+(?:[.,]\d+)?)\s*\)/)
+      || p.match(/diem[^.]{0,40}?tu\s+(\d+(?:[.,]\d+)?)\s+(?:den|toi)\s+(\d+(?:[.,]\d+)?)/);
+    return m ? [numOf(m[1]), numOf(m[2])] : null;
+  }
+  function rangeText(t) {
+    const lo = t.low ? `${t.low.n} ${t.low.op === '>=' ? '≤' : '<'} điểm` : '';
+    if (lo && t.hi) return `${lo} ${t.hi.op === '<' ? '<' : '≤'} ${t.hi.n}`;
+    if (lo) return `điểm ${t.low.op === '>=' ? '≥' : '>'} ${t.low.n}`;
+    if (t.hi) return `điểm ${t.hi.op === '<' ? '<' : '≤'} ${t.hi.n}`;
+    return 'còn lại';
+  }
+  function gradeProgram(p, orig) {
+    let tiers = gradeTiers(orig);
+    const fromText = tiers.length >= 2;
+    if (!fromText) {
+      tiers = [
+        { name: 'Giỏi', low: { op: '>=', n: 8 }, hi: null, raw: '' },
+        { name: 'Khá', low: { op: '>=', n: 6.5 }, hi: { op: '<', n: 8 }, raw: '' },
+        { name: 'Trung bình', low: { op: '>=', n: 5 }, hi: { op: '<', n: 6.5 }, raw: '' },
+        { name: 'Yếu', low: null, hi: { op: '<', n: 5 }, raw: '' }
+      ];
+    }
+    const rg = scoreRange(p);
+    const withLow = tiers.filter(t => t.low).sort((a, b) => b.low.n - a.low.n);
+    const rest = tiers.filter(t => !t.low);
+    let tail = rest.length ? [io(`Xuất "${rest[0].name}"`)] : [];
+    for (let i = withLow.length - 1; i >= 0; i--) {
+      const t = withLow[i];
+      tail = [IF(`diem ${t.low.op} ${t.low.n}`, [io(`Xuất "${t.name}"`)], tail)];
+    }
+    const prog = [io('Nhập diem')];
+    if (rg) prog.push(IF(`diem < ${rg[0]} || diem > ${rg[1]}`, [io('Xuất "Điểm không hợp lệ"')], tail));
+    else prog.push(...tail);
+
+    // Soát mốc: mức dưới phải bắt đầu đúng chỗ mức trên kết thúc.
+    const checks = [];
+    for (let i = 0; i < withLow.length; i++) {
+      const up = withLow[i], lo = withLow[i + 1] || rest[0];
+      if (!lo) continue;
+      if (!lo.hi) { checks.push({ lv: 'info', msg: `Mức ${lo.name} không ghi mốc trên, hiểu là dưới ${up.low.n}.` }); continue; }
+      const want = up.low.op === '>=' ? '<' : '<=';
+      if (lo.hi.n < up.low.n) checks.push({ lv: 'warn', msg: `Hở mốc: điểm từ ${lo.hi.n} đến ${up.low.n} không thuộc mức nào (giữa ${lo.name} và ${up.name}).` });
+      else if (lo.hi.n > up.low.n) checks.push({ lv: 'warn', msg: `Chồng mốc: điểm từ ${up.low.n} đến ${lo.hi.n} thuộc cả ${up.name} và ${lo.name}. Lưu đồ xét mức cao trước nên sẽ ra ${up.name}.` });
+      else if (lo.hi.op !== want) checks.push({ lv: 'warn', msg: lo.hi.op === '<=' ? `Điểm đúng bằng ${up.low.n} thuộc cả ${up.name} và ${lo.name}.` : `Điểm đúng bằng ${up.low.n} không thuộc mức nào.` });
+    }
+    if (rest.length > 1) checks.push({ lv: 'warn', msg: `Có ${rest.length} mức không có mốc dưới (${rest.map(t => t.name).join(', ')}). Chỉ 1 mức được là "còn lại".` });
+    if (rg && withLow.length && withLow[0].low.n > rg[1]) checks.push({ lv: 'warn', msg: `Mức ${withLow[0].name} cần điểm ${withLow[0].low.op} ${withLow[0].low.n}, lớn hơn điểm tối đa ${rg[1]}.` });
+    if (fromText && !checks.some(c => c.lv === 'warn')) checks.unshift({ lv: 'ok', msg: `${tiers.length} mức nối liền nhau, không hở, không chồng: mỗi điểm thuộc đúng 1 mức.` });
+    if (!fromText) checks.unshift({ lv: 'warn', msg: 'Đề không ghi mốc điểm, đang dùng mốc thường gặp. Nếu đề có mốc khác, sửa số trong khối thoi.' });
+    checks.push(rg
+      ? { lv: 'info', msg: `Đề giới hạn điểm từ ${rg[0]} đến ${rg[1]} → khối thoi đầu tiên kiểm tra điểm hợp lệ.` }
+      : { lv: 'info', msg: 'Đề không nói giới hạn điểm. Có thể thêm khối thoi kiểm tra điểm nằm trong 0 đến 10.' });
+
+    const order = [...withLow, ...rest];
+    const table = order.map(t => ({
+      name: t.name, raw: t.raw || '—', range: rangeText(t),
+      block: t.low ? `diem ${t.low.op} ${t.low.n}` : 'nhánh Sai cuối cùng'
+    }));
+    const vals = new Set();
+    if (rg) { vals.add(rg[0] - 1); vals.add(rg[0]); vals.add(rg[1]); vals.add(rg[1] + 1); }
+    for (const t of withLow) { vals.add(t.low.op === '>=' ? t.low.n : t.low.n + 0.5); vals.add(+(t.low.n - 0.1).toFixed(2)); }
+    const tests = [...vals].filter(v => !rg || (v >= rg[0] - 1 && v <= rg[1] + 1)).sort((a, b) => a - b).map(v => [v]);
+    return {
+      given: [`diem: điểm của sinh viên${rg ? ` (từ ${rg[0]} đến ${rg[1]})` : ''}`],
+      asked: [`In ra học lực: ${order.map(t => t.name).join(', ')}`],
+      floats: ['diem'], prog, table, checks, tests,
+      note: 'Xét từ mốc cao xuống thấp. Đã đi qua nhánh Sai của khối trên thì chắc chắn điểm nhỏ hơn mốc trên, nên mỗi khối thoi chỉ cần so với mốc dưới.'
+    };
+  }
+
+  // ---------- Mảng ----------
+  function arrayProgram(p) {
+    const prog = [io('Nhập n'), FOR('i = 0', 'i < n', 'i++', [io('Nhập a[i]')])];
+    const asked = [], floats = [];
+    const loop = body => FOR('i = 0', 'i < n', 'i++', body);
+    let x = false;
+    if (has(p, /trung\s+binh/)) {
+      prog.push(pr('s = 0'), loop([pr('s = s + a[i]')]), pr('tb = s / n'), io('Xuất tb'));
+      floats.push('tb'); asked.push('Trung bình cộng các phần tử');
+    } else if (has(p, /\btong\b|cong\s+cac/)) {
+      prog.push(pr('s = 0'), loop([pr('s = s + a[i]')]), io('Xuất s')); asked.push('Tổng các phần tử');
+    }
+    if (has(p, /lon\s+nhat|\bmax\b/)) {
+      prog.push(pr('max = a[0]'), FOR('i = 1', 'i < n', 'i++', [IF('a[i] > max', [pr('max = a[i]')])]), io('Xuất max'));
+      asked.push('Phần tử lớn nhất');
+    }
+    if (has(p, /nho\s+nhat|\bmin\b/)) {
+      prog.push(pr('min = a[0]'), FOR('i = 1', 'i < n', 'i++', [IF('a[i] < min', [pr('min = a[i]')])]), io('Xuất min'));
+      asked.push('Phần tử nhỏ nhất');
+    }
+    if (has(p, /\bdem\b/)) {
+      const c = has(p, /\bchan\b/) ? ['a[i] % 2 == 0', 'chẵn'] : has(p, /\ble\b/) ? ['a[i] % 2 != 0', 'lẻ'] : has(p, /\bam\b/) ? ['a[i] < 0', 'âm'] : ['a[i] > 0', 'dương'];
+      prog.push(pr('dem = 0'), loop([IF(c[0], [pr('dem = dem + 1')])]), io('Xuất dem'));
+      asked.push(`Số phần tử ${c[1]}`);
+    }
+    if (has(p, /tim\s+(kiem\s+)?(x|phan\s+tu|so|gia\s+tri)|co\s+xuat\s+hien|co\s+trong\s+mang/)) {
+      x = true;
+      prog.push(io('Nhập x'), pr('vt = -1'), loop([IF('a[i] == x', [pr('vt = i')])]),
+        IF('vt != -1', [io('Xuất "Có, ở vị trí", vt')], [io('Xuất "Không có"')]));
+      asked.push('x có trong mảng không, ở vị trí nào');
+    }
+    const sort = has(p, /sap\s+xep|tang\s+dan|giam\s+dan/);
+    if (sort) {
+      const op = has(p, /giam\s+dan/) ? '<' : '>';
+      prog.push(FOR('i = 0', 'i < n - 1', 'i++', [FOR('j = i + 1', 'j < n', 'j++',
+        [IF(`a[i] ${op} a[j]`, [pr('tam = a[i]\na[i] = a[j]\na[j] = tam')])])]));
+      asked.push(`Sắp xếp mảng ${op === '>' ? 'tăng' : 'giảm'} dần`);
+    }
+    if (sort || !asked.length || has(p, /\b(in|xuat)\s+(ra\s+)?(mang|cac\s+phan\s+tu)/)) {
+      prog.push(loop([io('Xuất a[i]')]));
+      if (!sort) asked.push('In các phần tử của mảng');
+    }
+    const t = [5, 3, 8, -1, 6, 2];
+    return {
+      given: ['n: số phần tử', 'a[0], a[1], ..., a[n-1]: các phần tử của mảng'],
+      asked, floats, prog,
+      tests: [x ? [...t, 6] : t, x ? [3, 1, 2, 3, 9] : [1, 7]],
+      note: 'Mảng đánh số từ 0 nên vòng lặp chạy i = 0 đến i < n. Nhập mảng = một vòng lặp, mỗi vòng nhập 1 phần tử a[i].'
+    };
+  }
+
+  // ---------- switch - case ----------
+  const THU = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+  const CHU_SO = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+  function menuItems(orig) {
+    const out = [];
+    const re = /(?:^|[\s,;(])(\d{1,2})\s*[.:)\-]\s*([^\d\n,;.]{2,40}?)(?=\s*[,;.]?\s*\d{1,2}\s*[.:)\-]|[\n.;]|$)/g;
+    let m;
+    while ((m = re.exec(orig))) out.push({ k: +m[1], text: m[2].trim() });
+    const ok = out.length >= 2 && out.every((o, i) => i === 0 || o.k === out[i - 1].k + 1);
+    return ok ? out : [];
+  }
+  function switchProgram(p, orig) {
+    // Số ngày của tháng
+    if (has(p, /thang/) && has(p, /so\s+ngay|bao\s+nhieu\s+ngay|co\s+may\s+ngay/)) {
+      const nhuan = has(p, /nam\s+nhuan|\bnam\b/);
+      const feb = nhuan ? [IF('(nam % 4 == 0 && nam % 100 != 0) || nam % 400 == 0', [io('Xuất 29')], [io('Xuất 28')])] : [io('Xuất 28')];
+      return {
+        name: 'switch: số ngày của tháng',
+        given: [nhuan ? 'thang, nam: tháng và năm' : 'thang: số tháng (1 đến 12)'],
+        asked: ['Tháng đó có bao nhiêu ngày'],
+        prog: [io(nhuan ? 'Nhập thang, nam' : 'Nhập thang'), SWITCH('thang', [
+          { vals: [1, 3, 5, 7, 8, 10, 12], body: [io('Xuất 31')] },
+          { vals: [4, 6, 9, 11], body: [io('Xuất 30')] },
+          { vals: [2], body: feb }
+        ], [io('Xuất "Tháng không hợp lệ"')])],
+        tests: nhuan ? [[1, 2023], [4, 2023], [2, 2024], [2, 2023], [13, 2023]] : [[1], [4], [2], [13]],
+        note: 'Nhiều case dùng chung một việc (case 1: case 3: ...) gộp vào cùng một khối thoi.'
+      };
+    }
+    // Đọc chữ số
+    if (has(p, /doc\s+(so|chu\s+so)|bang\s+chu|thanh\s+chu/)) {
+      return {
+        name: 'switch: đọc chữ số',
+        given: ['n: một chữ số từ 0 đến 9'], asked: ['Cách đọc của n bằng chữ'],
+        prog: [io('Nhập n'), SWITCH('n', CHU_SO.map((w, i) => ({ vals: [i], body: [io(`Xuất "${w}"`)] })), [io('Xuất "Không phải chữ số"')])],
+        tests: [[0], [5], [9], [12]]
+      };
+    }
+    // Máy tính / chọn phép toán
+    const items = menuItems(orig);
+    const calc = has(p, /phep\s+(toan|tinh)|may\s+tinh|cong.{0,20}tru.{0,20}nhan.{0,20}chia/);
+    const repeat = has(p, /lap\s+lai|cho\s+den\s+khi|den\s+khi|thoat/);
+    if (calc || items.length) {
+      const opts = items.length ? items : [{ k: 1, text: 'Cộng' }, { k: 2, text: 'Trừ' }, { k: 3, text: 'Nhân' }, { k: 4, text: 'Chia' }];
+      const quit = opts.find(o => /thoat|ket\s+thuc|exit/.test(plainOf(o.text)));
+      const bodyOf = o => {
+        const t = plainOf(o.text);
+        if (/cong|tong/.test(t)) return [io('Xuất a + b')];
+        if (/tru|hieu/.test(t)) return [io('Xuất a - b')];
+        if (/nhan|tich/.test(t)) return [io('Xuất a * b')];
+        if (/chia|thuong/.test(t)) return [IF('b != 0', [io('Xuất a / b')], [io('Xuất "Không chia được cho 0"')])];
+        if (o === quit) return [io('Xuất "Tạm biệt"')];
+        return [io(`Xuất "Bạn chọn: ${o.text}"`)];
+      };
+      const needAB = opts.some(o => /cong|tru|nhan|chia|tong|hieu|tich|thuong/.test(plainOf(o.text)));
+      const sw = SWITCH('chon', opts.map(o => ({ vals: [o.k], body: bodyOf(o) })), [io('Xuất "Lựa chọn không hợp lệ"')]);
+      const menu = [io('Xuất menu'), io('Nhập chon'), sw];
+      const body = needAB ? [io('Nhập a, b'), ...menu] : menu;
+      const prog = repeat && quit ? [DO(body, `chon != ${quit.k}`)] : body;
+      const first = opts[0].k;
+      const tin = needAB ? [8, 2] : [];
+      const tests = repeat && quit
+        ? [[...tin, first, ...tin, quit.k]]
+        : [...opts.slice(0, 4).map(o => [...tin, o.k]), [...tin, 99]];
+      return {
+        name: 'switch: menu lựa chọn',
+        given: [needAB ? 'a, b: hai số' : '', 'chon: số người dùng chọn trong menu'].filter(Boolean),
+        asked: ['Làm việc tương ứng với lựa chọn'],
+        floats: needAB ? ['a', 'b'] : [], prog, tests,
+        note: repeat && quit ? `Đề muốn lặp lại menu nên bọc trong do-while: chạy đến khi chọn ${quit.k} (${quit.text}).` : ''
+      };
+    }
+    // Thứ trong tuần
+    if (has(p, /\bthu\b/) && has(p, /tuan|chu\s+nhat/)) {
+      const from2 = has(p, /\b8\b/);
+      const cases = THU.map((w, i) => ({ vals: [from2 ? (i === 0 ? 8 : i + 1) : i + 1], body: [io(`Xuất "${w}"`)] }));
+      if (from2) cases.push(cases.shift());
+      return {
+        name: 'switch: thứ trong tuần',
+        given: [`n: số từ ${from2 ? '2 đến 8' : '1 đến 7'}`], asked: ['Thứ tương ứng'],
+        prog: [io('Nhập n'), SWITCH('n', cases, [io('Xuất "Không hợp lệ"')])],
+        tests: from2 ? [[2], [7], [8], [0]] : [[1], [2], [7], [9]],
+        note: from2 ? '' : 'Đang hiểu 1 là Chủ nhật, 2 là Thứ hai... Nếu đề quy ước khác thì sửa lại các khối thoi.'
+      };
+    }
+    return null;
+  }
+
+  // ---------- struct ----------
+  const camel = s => {
+    const w = plainOf(s).replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean);
+    return w.length ? w[0] + w.slice(1).map(x => x[0].toUpperCase() + x.slice(1)).join('') : '';
+  };
+  function structProgram(p, orig) {
+    const ent = has(p, /hoc\s+sinh/) ? ['hs', 'học sinh'] : has(p, /nhan\s+vien/) ? ['nv', 'nhân viên'] : has(p, /san\s+pham|mat\s+hang/) ? ['sp', 'sản phẩm'] : has(p, /cuon\s+sach|quyen\s+sach/) ? ['s', 'cuốn sách'] : ['sv', 'sinh viên'];
+    let fields = [];
+    const m = p.match(/(gom|bao\s+gom|co\s+cac\s+thong\s+tin|thong\s+tin)(\s+co)?\s*:?\s*([^.\n]+)/);
+    if (m) {
+      const st = m.index + m[0].length - m[3].length;
+      fields = orig.substr(st, m[3].length).split(/,|;|\svà\s|\sva\s/).map(f => f.replace(/\(.*?\)/g, '').trim()).filter(f => f && f.length < 30);
+    }
+    if (fields.length < 2) fields = ent[0] === 'sp' ? ['mã', 'tên', 'giá'] : ['mã', 'họ tên', 'điểm'];
+    const ids = fields.map(camel).map(f => f === 'hoTen' ? 'ten' : f);
+    const many = has(p, /danh\s+sach|\bn\s+(sinh|hoc|nhan|san|cuon|mat)|mang|nhieu/);
+    const diem = ids.find(f => /diem|gia|luong/.test(f));
+    const R = { name: 'struct: ' + ent[1], floats: [], given: [], asked: [] };
+    if (!many) {
+      const v = ent[0];
+      R.given = [`${v}: một ${ent[1]}, gồm ${ids.map(f => v + '.' + f).join(', ')}`];
+      R.asked = [`In ra thông tin ${ent[1]}`];
+      R.prog = [io(`Nhập ${ids.map(f => v + '.' + f).join(', ')}`), io(`Xuất ${ids.map(f => v + '.' + f).join(', ')}`)];
+      R.tests = [ids.map((f, i) => f === diem ? 8.5 : i === 0 ? 'SV01' : 'An')];
+    } else {
+      const f = i => ids.map(x => `ds[${i}].${x}`).join(', ');
+      R.given = ['n: số ' + ent[1], `ds[0..n-1]: mảng ${ent[1]}, mỗi phần tử có ${ids.join(', ')}`];
+      R.prog = [io('Nhập n'), FOR('i = 0', 'i < n', 'i++', [io(`Nhập ${f('i')}`)])];
+      R.asked = [`In danh sách ${ent[1]}`];
+      if (diem && has(p, /cao\s+nhat|lon\s+nhat|max/)) {
+        R.prog.push(pr('vt = 0'), FOR('i = 1', 'i < n', 'i++', [IF(`ds[i].${diem} > ds[vt].${diem}`, [pr('vt = i')])]), io(`Xuất ${f('vt')}`));
+        R.asked = [`${ent[1]} có ${diem} cao nhất`];
+      } else R.prog.push(FOR('i = 0', 'i < n', 'i++', [io(`Xuất ${f('i')}`)]));
+      const one = k => ids.map((x, i) => x === diem ? [7, 9, 6][k] : i === 0 ? `SV0${k + 1}` : ['An', 'Bình', 'Chi'][k]);
+      R.tests = [[3, ...one(0), ...one(1), ...one(2)]];
+    }
+    R.note = `struct gom nhiều thông tin của một ${ent[1]} vào một biến. Trong lưu đồ ghi bằng dấu chấm: ${(many ? 'ds[i].' : ent[0] + '.') + ids[0]}. Không có hình riêng cho struct.`;
+    return R;
+  }
+
+  // ---------- Đề yêu cầu loại vòng lặp cụ thể ----------
+  function wantLoop(p) {
+    const d = /do\s*[-–]?\s*while/.test(p);
+    const q = p.replace(/do\s*[-–]?\s*while/g, ' ');
+    const k = [d && 'do', /\bwhile\b/.test(q) && 'while', /\bfor\b/.test(q) && 'for'].filter(Boolean);
+    return k.length === 1 ? k[0] : null;
+  }
+  function convertLoops(list, kind) {
+    let changed = false;
+    const conv = l => {
+      const out = [];
+      for (const s0 of l) {
+        const s = { ...s0 };
+        if (s.yes) { s.yes = conv(s.yes); s.no = conv(s.no); }
+        if (s.body) s.body = conv(s.body);
+        if (s.cases) { s.cases = s.cases.map(c => ({ ...c, body: conv(c.body) })); s.def = conv(s.def); }
+        if (s.t === 'for' && kind === 'while') { out.push(pr(s.init), WHILE(s.cond, [...s.body, pr(s.step)])); changed = true; }
+        else if (s.t === 'for' && kind === 'do') { out.push(pr(s.init), DO([...s.body, pr(s.step)], s.cond)); changed = true; }
+        else out.push(s);
+      }
+      return out;
+    };
+    const prog = conv(list);
+    return { prog, changed };
+  }
+
+  // ---------- Đề yêu cầu viết hàm ----------
+  const FNAME = {
+    'giai-thua': 'giaiThua', 'nguyen-to': 'laNguyenTo', 'chan-le': 'kiemTraChanLe', 'tong-day': 'tinhTong', 'max2': 'timMax',
+    'max3': 'timMax', 'ptb1': 'giaiPTB1', 'ptb2': 'giaiPTB2', 'nam-nhuan': 'laNamNhuan', 'xep-loai': 'xepLoai',
+    'chu-so': 'tongChuSo', 'am-duong': 'kiemTraDau', 'hinh-tron': 'dienTichHinhTron', 'hcn': 'dienTichHCN',
+    'trung-binh': 'trungBinh', 'in-day': 'inDay', 'cuu-chuong': 'inBangCuuChuong', 'tam-giac': 'laTamGiac',
+    'chia-het': 'chiaHet', 'nhiet-do': 'doiNhietDo', 'phep-tinh': 'tinhToan'
+  };
+  const hasInput = list => list.some(s => (s.t === 'io' && /^Nhập/.test(s.text)) || kids(s).some(hasInput));
+  function wantFunc(p, orig) {
+    if (!/\bham\b|chuong\s+trinh\s+con/.test(p)) return null;
+    const m = orig.match(/hàm\s+([A-Za-z_]\w*)\s*\(/i) || plainOf(orig).match(/ham\s+([a-z_]\w*)\s*\(/);
+    return { name: m ? m[1] : null, voidish: /khong\s+tra\s+ve|\bvoid\b|thu\s+tuc/.test(p), ret: /tra\s+ve/.test(p) };
+  }
+  function toFunc(r, want, id) {
+    const prog = r.prog;
+    let i = 0;
+    const inputs = [];
+    while (i < prog.length && prog[i].t === 'io' && /^Nhập/.test(prog[i].text)) inputs.push(prog[i++]);
+    let j = prog.length;
+    const outs = [];
+    while (j > i && prog[j - 1].t === 'io' && /^Xuất/.test(prog[j - 1].text)) outs.unshift(prog[--j]);
+    const mid = prog.slice(i, j);
+    if (!mid.length || hasInput(mid)) return null;
+    const params = inputs.flatMap(s => splitItems(s.text.replace(/^Nhập\s+/, '')));
+    const name = want.name || FNAME[id] || 'xuLy';
+    const call = `${name}(${params.join(', ')})`;
+    const sig = `Bắt đầu ${call}`;
+    // 1) Một giá trị kết quả → hàm trả về giá trị đó.
+    if (!want.voidish && outs.length === 1) {
+      const items = splitItems(outs[0].text.replace(/^Xuất\s+/, ''));
+      const ex = items.filter(x => !x.startsWith('"'));
+      if (ex.length === 1) {
+        return {
+          prog: [...inputs, SUB(`kq = ${call}`), io('Xuất ' + items.map(x => x === ex[0] ? 'kq' : x).join(', '))],
+          funcs: [{ name, params, ret: ex[0], body: mid, start: sig, end: `Trả về ${ex[0]}` }],
+          kind: 'ret'
+        };
+      }
+    }
+    // 2) Câu hỏi đúng/sai (khối thoi cuối chỉ in 2 câu) → hàm trả về 1/0, main in kết quả.
+    const last = mid[mid.length - 1];
+    if (!want.voidish && !outs.length && last && last.t === 'if' && last.yes.length === 1 && last.no.length === 1
+      && last.yes[0].t === 'io' && last.no[0].t === 'io' && (want.ret || /^la|^kiemTra|^chiaHet/.test(name))) {
+      return {
+        prog: [...inputs, SUB(`kq = ${call}`), IF('kq == 1', last.yes, last.no)],
+        funcs: [{ name, params, ret: `(${last.cond}) ? 1 : 0`, retShow: '1 nếu đúng, 0 nếu sai', body: mid.slice(0, -1), start: sig, end: `Trả về (${last.cond})` }],
+        kind: 'ret'
+      };
+    }
+    // 3) Còn lại → hàm không trả về (void), tự in kết quả.
+    return {
+      prog: [...inputs, SUB(call)],
+      funcs: [{ name, params, ret: null, body: [...mid, ...outs], start: sig, end: 'Kết thúc hàm' }],
+      kind: 'void'
+    };
+  }
+
+  // ---------- Đọc đề: tô màu từ khóa ----------
+  const HL = [
+    ['rule', /\(\s*-?\d+(?:[.,]\d+)?\s*[-–]\s*-?\d+(?:[.,]\d+)?\s*\)|nguyen\s+duong|so\s+nguyen|so\s+thuc|khac\s+0|hop\s+le|biet\s+rang/g],
+    ['loop', /\b(tu\s+\S+\s+(den|toi)\s+[^\s.,;]+|cho\s+den\s+khi|den\s+khi|lap\s+lai|nhap\s+lai|cac\s+so|day\s+so|moi\s+(so|phan\s+tu)|tung\s+(so|phan\s+tu)|vong\s+lap|do\s*-?\s*while|while|for)\b/g],
+    ['data', /\b(mang|phan\s+tu|danh\s+sach|struct|cau\s+truc|ham|tra\s+ve|void|switch|case|menu|lua\s+chon)\b/g],
+    ['in', /\b(nhap(\s+vao)?|doc\s+vao|input|dau\s+vao|cho\s+(truoc|so|mot|hai|ba))\b/g],
+    ['out', /\b(in\s+ra|xuat(\s+ra)?|hien\s+thi|output|dau\s+ra|tinh|tim|cho\s+biet|kiem\s+tra|dem|thong\s+bao|sap\s+xep)\b/g],
+    ['cond', /\b(neu|thi|nguoc\s+lai|con\s+lai|hay|hoac)\b|>=|<=|!=|==|≥|≤|>|</g]
+  ];
+  function highlight(orig) {
+    const p = plainOf(orig);
+    const tag = new Array(p.length).fill('');
+    for (const [c, re] of HL) for (const m of p.matchAll(re)) for (let i = m.index; i < m.index + m[0].length; i++) if (!tag[i]) tag[i] = c;
+    const segs = [];
+    for (let i = 0; i < orig.length; i++) {
+      const last = segs[segs.length - 1];
+      if (last && last.c === tag[i]) last.t += orig[i]; else segs.push({ c: tag[i], t: orig[i] });
+    }
+    return segs;
+  }
+  function rulesOf(orig) {
+    const p = plainOf(orig), out = [];
+    for (const m of p.matchAll(/\(\s*(-?\d+(?:[.,]\d+)?)\s*[-–]\s*(-?\d+(?:[.,]\d+)?)\s*\)|tu\s+(-?\d+(?:[.,]\d+)?)\s+den\s+(-?\d+(?:[.,]\d+)?)/g)) {
+      const a = m[1] || m[3], b = m[2] || m[4];
+      out.push(`Giá trị trong khoảng ${a} đến ${b} ("${orig.substr(m.index, m[0].length).trim()}"). Nên có khối thoi kiểm tra dữ liệu hợp lệ.`);
+    }
+    if (/nguyen\s+duong/.test(p)) out.push('Số nguyên dương: phải lớn hơn 0. Có thể kiểm tra n > 0, hoặc nhập lại bằng do-while.');
+    if (/khac\s+0/.test(p)) out.push('Có giá trị phải khác 0 (thường là số chia).');
+    if (/so\s+thuc/.test(p)) out.push('Số thực: có thể có phần thập phân.');
+    return uniq(out);
+  }
+  function varsOf(R) {
+    const out = [];
+    const seen = new Set();
+    const add = (v, role) => { if (!seen.has(v)) { seen.add(v); out.push(`${v}: ${role}`); } };
+    const walk = list => {
+      for (const s of list) {
+        if (s.t === 'io' && /^Nhập/.test(s.text)) splitItems(s.text.replace(/^Nhập\s+/, '')).forEach(v => add(v.replace(/\[.*$/, '[]'), 'nhập từ bàn phím'));
+        if (s.t === 'for' && s.init) { const m = s.init.match(/^\s*(\w+)/); if (m) add(m[1], 'biến đếm của vòng lặp'); }
+        if ((s.t === 'proc' || s.t === 'sub') && s.text) for (const l of s.text.split('\n')) { const m = l.match(/^\s*([\w.]+)(?:\[[^\]]*\])?\s*=/); if (m) add(m[1], 'biến tính toán / kết quả'); }
+        kids(s).forEach(walk);
+      }
+    };
+    walk(R.prog);
+    (R.funcs || []).forEach(f => f.params.forEach(v => add(`${v} (trong hàm ${f.name})`, 'tham số, nhận giá trị từ lời gọi hàm')));
+    return out;
+  }
+
+  // ---------- Chạy thử lưu đồ ----------
+  const SAFE = /^[\w\s+\-*/%().<>=!&|,\[\]?:]*$/;
+  function evalE(expr, env) {
+    if (!SAFE.test(expr)) throw new Error('unsafe');
+    const ks = Object.keys(env);
+    return Function(...ks, 'sqrt', 'fabs', `"use strict"; return (${expr});`)(...ks.map(k => env[k]), Math.sqrt, Math.abs);
+  }
+  const fmtV = v => typeof v === 'number' ? (Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100)) : String(v);
+  function runProg(R, inputs) {
+    const fl = new Set(R.floats || []);
+    const funcs = new Map((R.funcs || []).map(f => [f.name, f]));
+    const q = [...inputs], out = [], path = [];
+    let steps = 0, depth = 0;
+    const envOf = prog => {
+      const e = {};
+      collectVars(prog).forEach(v => { e[v] = 0; });
+      arraysOf(prog).forEach(a => { e[a] = []; });
+      return e;
+    };
+    const setv = (env, lhs, v) => {
+      const m = lhs.trim().match(/^([A-Za-z_]\w*)(?:\[(.+?)\])?(?:\.(\w+))?$/);
+      if (!m) throw new Error('lhs');
+      if (typeof v === 'number' && !fl.has(m[1]) && !m[3]) v = Math.trunc(v);
+      if (m[2] !== undefined) {
+        if (!Array.isArray(env[m[1]])) env[m[1]] = [];
+        const k = evalE(m[2], env);
+        if (m[3]) { env[m[1]][k] = env[m[1]][k] || {}; env[m[1]][k][m[3]] = v; } else env[m[1]][k] = v;
+      } else if (m[3]) {
+        if (!env[m[1]] || typeof env[m[1]] !== 'object') env[m[1]] = {};
+        env[m[1]][m[3]] = v;
+      } else env[m[1]] = v;
+    };
+    const assign = (line, env) => {
+      if (!line.trim()) return;
+      const m = line.match(/^\s*([\w.]+(?:\[[^\]]+\])?(?:\.\w+)?)\s*(\+\+|--|\+=|-=|\*=|=)\s*(.*)$/);
+      if (!m) throw new Error('assign');
+      const cur = () => evalE(m[1], env);
+      if (m[2] === '++') setv(env, m[1], cur() + 1);
+      else if (m[2] === '--') setv(env, m[1], cur() - 1);
+      else if (m[2] === '+=') setv(env, m[1], cur() + evalE(m[3], env));
+      else if (m[2] === '-=') setv(env, m[1], cur() - evalE(m[3], env));
+      else if (m[2] === '*=') setv(env, m[1], cur() * evalE(m[3], env));
+      else setv(env, m[1], evalE(m[3], env));
+    };
+    const call = (text, env) => {
+      const m = text.match(/^(?:([\w.\[\]]+)\s*=\s*)?([A-Za-z_]\w*)\s*\((.*)\)$/);
+      const f = m && funcs.get(m[2]);
+      if (!f) throw new Error('call');
+      const args = m[3].trim() ? splitItems(m[3]).map(a => evalE(a, env)) : [];
+      const fe = envOf(f.body);
+      f.params.forEach((p, i) => { fe[p] = args[i]; });
+      if (!depth) path.push(`gọi ${f.name}(${args.map(fmtV).join(', ')})`);
+      depth++;
+      exec(f.body, fe);
+      depth--;
+      if (m[1]) setv(env, m[1], f.ret ? evalE(f.ret, fe) : 0);
+    };
+    const loopRun = (cond, body, env, step, isDo) => {
+      depth++;
+      let k = 0;
+      if (isDo) { do { if (++steps > 20000) throw new Error('loop'); k++; exec(body, env); } while (evalE(cond, env)); }
+      else while (evalE(cond, env)) { if (++steps > 20000) throw new Error('loop'); k++; exec(body, env); if (step) assign(step, env); }
+      depth--;
+      if (!depth) path.push(`lặp ${k} lần`);
+    };
+    function exec(list, env) {
+      for (const s of list) {
+        if (s.t === 'io') {
+          const m = s.text.match(/^(Nhập|Xuất)\s+(.*)$/s);
+          if (!m) continue;
+          const items = splitItems(m[2]);
+          if (m[1] === 'Nhập') {
+            for (const it of items) { if (!q.length) throw new Error('input'); setv(env, it, q.shift()); }
+          } else if (items.length === 1 && items[0] === 'menu') {
+            // chỉ là in menu, không cần ghi ra
+          } else out.push(items.map(it => it.startsWith('"') ? it.slice(1, -1) : fmtV(evalE(it, env))).join(' '));
+        } else if (s.t === 'proc') s.text.split('\n').forEach(l => assign(l, env));
+        else if (s.t === 'sub') call(s.text.trim(), env);
+        else if (s.t === 'if') {
+          const r = !!evalE(s.cond, env);
+          if (!depth) path.push(`${s.cond.replace(/\n/g, ' ')}: ${r ? 'Đúng' : 'Sai'}`);
+          exec(r ? s.yes : s.no, env);
+        } else if (s.t === 'switch') {
+          const c = s.cases.find(c => c.vals.some(v => evalE(`${s.expr} == ${v}`, env)));
+          if (!depth) path.push(`switch ${s.expr}: ${c ? 'case ' + c.vals.find(v => evalE(`${s.expr} == ${v}`, env)) : 'default'}`);
+          exec(c ? c.body : s.def, env);
+        } else if (s.t === 'while') loopRun(s.cond, s.body, env);
+        else if (s.t === 'for') { if (s.init) assign(s.init, env); loopRun(s.cond, s.body, env, s.step); }
+        else if (s.t === 'do') loopRun(s.cond, s.body, env, null, true);
+      }
+    }
+    exec(R.prog, envOf(R.prog));
+    if (q.length) throw new Error('extra');
+    return { out, path };
+  }
+  function autoTests(R) {
+    const first = R.prog.find(s => s.t === 'io' && /^Nhập/.test(s.text));
+    if (!first) return [];
+    const vars = splitItems(first.text.replace(/^Nhập\s+/, ''));
+    if (vars.length !== 1) return [];
+    const v = vars[0], nums = new Set();
+    const walk = list => list.forEach(s => {
+      if (s.cond && new RegExp(`\\b${v}\\b`).test(s.cond)) for (const m of s.cond.matchAll(/-?\d+(?:\.\d+)?/g)) nums.add(+m[0]);
+      kids(s).forEach(walk);
+    });
+    walk(R.prog);
+    if (!nums.size) return [];
+    const fl = (R.floats || []).includes(v);
+    const vals = new Set();
+    for (const n of nums) { vals.add(n); vals.add(fl ? n - 0.5 : n - 1); vals.add(fl ? n + 0.5 : n + 1); }
+    return [...vals].sort((a, b) => a - b).slice(0, 8).map(x => [x]);
+  }
+  function runTests(R) {
+    const sets = (R.tests && R.tests.length ? R.tests : autoTests(R)).slice(0, 16);
+    const rows = [];
+    for (const inp of sets) {
+      try {
+        const r = runProg(R, inp);
+        rows.push({ input: inp.map(fmtV).join(', '), output: r.out.length > 4 ? [...r.out.slice(0, 3), `… (${r.out.length} dòng)`] : r.out, path: r.path });
+      } catch (e) { return []; }
+    }
+    return rows;
+  }
+
   const PATTERNS = [
+    {
+      id: 'struct', name: 'struct',
+      test: p => has(p, /\bstruct\b|cau\s+truc|kieu\s+du\s+lieu\s+(sinh|hoc|nhan)|thong\s+tin\s+(cua\s+)?(mot\s+|n\s+|cac\s+)?(sinh\s+vien|hoc\s+sinh|nhan\s+vien|san\s+pham|cuon\s+sach)|(sinh\s+vien|hoc\s+sinh|nhan\s+vien|san\s+pham)\s+(gom|bao\s+gom)/),
+      make: (p, vs, low, orig) => structProgram(p, orig)
+    },
+    {
+      id: 'switch', name: 'switch - case',
+      test: p => has(p, /switch|\bcase\b|menu|lua\s+chon|chon\s+(1|so)|thu\s+(trong|cua)\s+tuan|ngay\s+trong\s+tuan|so\s+ngay|bao\s+nhieu\s+ngay|co\s+may\s+ngay|doc\s+(so|chu\s+so)|may\s+tinh|phep\s+toan/),
+      make: (p, vs, low, orig) => switchProgram(p, orig)
+    },
+    {
+      id: 'mang', name: 'Mảng',
+      test: p => has(p, /\bmang\b|phan\s+tu|day\s+(gom\s+)?n\s+so|nhap\s+n\s+so|day\s+so\s+nguyen/),
+      make: p => arrayProgram(p)
+    },
     {
       id: 'ptb2', name: 'Giải phương trình bậc 2',
       test: p => has(p, /bac\s*(2|hai)|ax\s*\^?\s*2|ax²/),
@@ -463,6 +985,7 @@ window.Analyzer = (() => {
           given: [`${v}: giá trị người dùng nhập`],
           asked: [`Nhập lại đến khi ${what}, rồi xuất ${v}`],
           prog: [DO([io(`Nhập ${v}`)], cond), io(`Xuất ${v}`)],
+          tests: r ? [[+r[0] - 1, +r[1] + 1, +r[0]], [+r[1]]] : [[-3, 0, 4], [5]],
           note: 'Dùng do-while: phải nhập ít nhất 1 lần rồi mới kiểm tra.'
         };
       }
@@ -496,36 +1019,7 @@ window.Analyzer = (() => {
     {
       id: 'xep-loai', name: 'Xếp loại điểm',
       test: p => has(p, /xep\s+loai|hoc\s+luc|loai\s+gioi|gioi.*kha/),
-      make: (p, vs, low, orig) => {
-        const tiers = gradeTiers(orig);
-        if (tiers.length >= 2) {
-          // Mốc lấy từ đề: xét từ mốc cao xuống thấp, loại không có mốc dưới là nhánh "còn lại".
-          const withLow = tiers.filter(t => t.low).sort((a, b) => b.low.n - a.low.n);
-          const rest = tiers.find(t => !t.low);
-          let tail = rest ? [io(`Xuất "${rest.name}"`)] : [];
-          for (let i = withLow.length - 1; i >= 0; i--) {
-            const t = withLow[i];
-            tail = [IF(`diem ${t.low.op} ${t.low.n}`, [io(`Xuất "${t.name}"`)], tail)];
-          }
-          return {
-            given: [`diem: điểm của sinh viên${/0\s*(-|đến|den)\s*10/i.test(orig) ? ' (0 đến 10)' : ''}`],
-            asked: [`Xếp loại: ${tiers.map(t => t.name).join(', ')}`],
-            floats: ['diem'],
-            prog: [io('Nhập diem'), ...tail],
-            note: `Đọc được ${tiers.length} mức từ đề. Xét từ mốc cao xuống thấp: đã qua nhánh Sai của mốc trên thì chắc chắn điểm nhỏ hơn mốc đó, nên mỗi khối thoi chỉ cần so mốc dưới.`
-          };
-        }
-        return {
-          given: ['diem: điểm trung bình (0 đến 10)'],
-          asked: ['Xếp loại: Giỏi, Khá, Trung bình hoặc Yếu'],
-          floats: ['diem'],
-          prog: [io('Nhập diem'),
-            IF('diem >= 8', [io('Xuất "Giỏi"')], [
-              IF('diem >= 6.5', [io('Xuất "Khá"')], [
-                IF('diem >= 5', [io('Xuất "Trung bình"')], [io('Xuất "Yếu"')])])])],
-          note: 'Đề không ghi rõ mốc điểm nên dùng mốc thường gặp. Nếu đề cho mốc khác, sửa lại số trong khối thoi.'
-        };
-      }
+      make: (p, vs, low, orig) => gradeProgram(p, orig)
     },
     {
       id: 'max3', weak: true, name: 'Tìm số lớn nhất / nhỏ nhất trong 3 số',
@@ -756,6 +1250,34 @@ window.Analyzer = (() => {
     };
   }
 
+  // Bộ dữ liệu chạy thử cho các dạng bài quen thuộc (theo thứ tự các ô Nhập).
+  const TESTS = {
+    ptb2: [[0, 2, 1], [1, 2, 5], [1, 2, 1], [1, -3, 2]], ptb1: [[0, 0], [0, 3], [2, -4]],
+    'nam-nhuan': [[2024], [2023], [1900], [2000]], 'tam-giac': [[3, 4, 5], [1, 2, 3]],
+    'nguyen-to': [[7], [9], [2], [1]], 'giai-thua': [[5], [0]], 'cuu-chuong': [[3]], 'chu-so': [[1234], [7]],
+    'tong-day': [[5], [1]], 'in-day': [[5]], max3: [[3, 1, 2], [1, 3, 2], [1, 2, 3], [2, 2, 2]],
+    max2: [[5, 3], [3, 5], [4, 4]], 'chan-le': [[4], [7], [0]], 'am-duong': [[5], [-3], [0]],
+    'trung-binh': [[4, 5, 6], [4, 5]], 'hinh-tron': [[2]], hcn: [[3, 4]], 'nhiet-do': [[100], [0]], 'phep-tinh': [[7, 2], [5, 0]]
+  };
+
+  // Lưu đồ chính + lưu đồ riêng của từng hàm (đặt bên dưới).
+  function buildAll(r) {
+    const main = build(r.prog);
+    if (!r.funcs || !r.funcs.length) return main;
+    const all = { nodes: [...main.nodes], edges: [...main.edges] };
+    let y = FC.bbox(main, 0);
+    y = y.y + y.h + 90;
+    r.funcs.forEach((f, i) => {
+      const c = build(f.body, { start: f.start, end: f.end, prefix: 'f' + i + '_' });
+      const b = FC.bbox(c, 0);
+      c.nodes.forEach(n => { n.y = Math.round(n.y + y - b.y); });
+      all.nodes.push(...c.nodes);
+      all.edges.push(...c.edges);
+      y += b.h + 90;
+    });
+    return all;
+  }
+
   function analyze(text) {
     const orig = text.normalize('NFC').trim();
     if (!orig) return null;
@@ -763,13 +1285,44 @@ window.Analyzer = (() => {
     const vs = letterVars(orig);
     // Đề tự viết "nếu ... thì ..." thì đọc theo câu chữ, trừ khi là dạng bài rõ ràng.
     const hasIf = /\bneu\b.+\bthi\b/.test(plain);
-    const pat = PATTERNS.find(P => (!P.weak || !hasIf) && P.test(plain, vs, low));
-    const r = pat ? pat.make(plain, vs, low, orig) : generic(orig, plain, vs);
+    let pat = null, r = null;
+    for (const P of PATTERNS) {
+      if (P.weak && hasIf) continue;
+      if (!P.test(plain, vs, low)) continue;
+      const x = P.make(plain, vs, low, orig);
+      if (x) { pat = P; r = x; break; }
+    }
+    if (!r) r = generic(orig, plain, vs);
+    if (pat && !r.tests && TESTS[pat.id]) r.tests = TESTS[pat.id];
+    const notes = [r.note].filter(Boolean);
+    const lk = wantLoop(plain);
+    if (lk) {
+      const c = convertLoops(r.prog, lk);
+      if (c.changed) { r.prog = c.prog; notes.push(`Đề yêu cầu dùng ${lk === 'do' ? 'do-while' : lk} nên vòng lặp được vẽ theo kiểu ${lk === 'do' ? 'do-while (khối thoi nằm cuối thân lặp)' : 'while'}.`); }
+    }
+    const wf = pat ? wantFunc(plain, orig) : null;
+    if (wf) {
+      const f = toFunc(r, wf, pat.id);
+      if (f) {
+        r.prog = f.prog; r.funcs = f.funcs;
+        const fn = f.funcs[0];
+        notes.push(f.kind === 'ret'
+          ? `Đề yêu cầu viết hàm. Hàm ${fn.name} có trả về giá trị: vẽ lưu đồ riêng cho hàm, khối cuối ghi "${fn.end}". Ở lưu đồ chính, lời gọi hàm là khối chữ nhật có 2 vạch đứng.`
+          : `Hàm ${fn.name} không trả về giá trị (void): hàm tự làm và tự in kết quả, khối cuối ghi "Kết thúc hàm". Ở lưu đồ chính, lời gọi hàm là khối chữ nhật có 2 vạch đứng.`);
+      } else notes.push('Đề có nhắc tới hàm, nhưng dạng bài này nhập dữ liệu ở giữa chương trình nên vẫn vẽ trong lưu đồ chính.');
+    }
+    const funcs = r.funcs || [];
+    const allSteps = steps(r.prog);
+    for (const f of funcs) allSteps.push(`Lưu đồ riêng của hàm ${f.name} (vẽ bên dưới lưu đồ chính):`, ...steps(f.body, { start: f.start, end: f.end }).map(x => '   ' + x));
     return {
-      pattern: pat ? pat.name : null,
-      given: r.given, asked: r.asked, note: r.note || '', found: r.found || [],
-      branches: branches(r.prog), loops: loops(r.prog), steps: steps(r.prog),
-      chart: build(r.prog), code: pat ? toC(r.prog, r.floats || []) : ''
+      pattern: r.name || (pat ? pat.name : null),
+      given: r.given, asked: r.asked, note: notes.join(' '), found: r.found || [],
+      branches: [...branches(r.prog), ...funcs.flatMap(f => branches(f.body))],
+      loops: [...loops(r.prog), ...funcs.flatMap(f => loops(f.body))],
+      steps: allSteps, chart: buildAll(r),
+      highlight: highlight(orig), rules: rulesOf(orig), vars: varsOf(r),
+      table: r.table || null, checks: r.checks || [], tests: pat ? runTests(r) : [],
+      funcs: funcs.map(f => ({ name: f.name, params: f.params, ret: f.ret ? (f.retShow || f.ret) : null }))
     };
   }
 

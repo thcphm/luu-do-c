@@ -86,6 +86,24 @@ svg.chart .node.hl .shape { stroke-width: 3; }
 .examples > div { display: flex; flex-wrap: wrap; gap: 6px; }
 .examples button { font-size: .85rem; min-height: 34px; padding: 4px 10px; border-radius: 99px; color: var(--muted); max-width: 100%; text-align: left; }
 .ana-result:empty { display: none; }
+.step-h { font-size: 1.1rem; margin: 22px 0 10px; color: var(--muted); }
+.card.read { margin-bottom: 4px; }
+.hl-text { font-size: 1.02rem; line-height: 1.9; margin: 0; }
+mark { color: inherit; border-radius: 4px; padding: 1px 3px; }
+.hl-in { background: rgba(169, 164, 245, .28); }
+.hl-out { background: rgba(134, 226, 138, .24); }
+.hl-cond { background: rgba(242, 200, 121, .28); }
+.hl-loop { background: rgba(79, 220, 255, .22); }
+.hl-data { background: rgba(159, 211, 255, .14); outline: 1px solid rgba(159, 211, 255, .5); }
+.hl-rule { background: rgba(255, 143, 143, .24); }
+.legend { margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.card.rule h3 { color: var(--bad); }
+.tbl-wrap { overflow-x: auto; }
+.tbl { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.tbl th { text-align: left; color: var(--muted); font-weight: 500; font-size: .85rem; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.tbl td { padding: 7px 10px; border-bottom: 1px solid rgba(42, 59, 87, .6); vertical-align: top; }
+.issues li.info { border-color: var(--brand); cursor: default; } .issues li.info .ic { color: var(--brand); }
+.card .issues li { cursor: default; }
 .drop { position: relative; }
 .drop-hint {
   position: absolute; inset: 0; display: none; place-items: center; border-radius: 10px;
@@ -121,6 +139,7 @@ details summary { cursor: pointer; color: var(--brand); }
 .toolbar button svg { width: 30px; height: 16px; fill: none; stroke-width: 2; }
 [data-add="term"] svg { stroke: var(--terminal); } [data-add="io"] svg { stroke: var(--amp); }
 [data-add="proc"] svg { stroke: var(--brand); } [data-add="dec"] svg { stroke: var(--lamp); }
+[data-add="sub"] svg { stroke: var(--desk); }
 .auto { font-size: .9rem; color: var(--muted); display: flex; gap: 6px; align-items: center; cursor: pointer; }
 .auto input { width: 18px; height: 18px; accent-color: var(--brand); }
 .status { padding: 4px 16px; font-size: .9rem; color: var(--brand); min-height: 1.9em; background: var(--wall); }
