@@ -592,7 +592,7 @@ window.Analyzer = (() => {
         R.prog.push(pr('vt = 0'), FOR('i = 1', 'i < n', 'i++', [IF(`ds[i].${diem} > ds[vt].${diem}`, [pr('vt = i')])]), io(`Xuất ${f('vt')}`));
         R.asked = [`${ent[1]} có ${diem} cao nhất`];
       } else R.prog.push(FOR('i = 0', 'i < n', 'i++', [io(`Xuất ${f('i')}`)]));
-      const one = k => ids.map((x, i) => x === diem ? [7, 9, 6][k] : i === 0 ? `SV0${k + 1}` : ['An', 'Bình', 'Chi'][k]);
+      const one = k => ids.map((x, i) => x === diem ? [7, 9, 6][k] : i === 0 ? `SV0${k + 1}` : ['An', 'Binh', 'Chi'][k]);
       R.tests = [[3, ...one(0), ...one(1), ...one(2)]];
     }
     R.note = `struct gom nhiều thông tin của một ${ent[1]} vào một biến. Trong lưu đồ ghi bằng dấu chấm: ${(many ? 'ds[i].' : ent[0] + '.') + ids[0]}. Không có hình riêng cho struct.`;
@@ -1316,7 +1316,7 @@ window.Analyzer = (() => {
     for (const f of funcs) allSteps.push(`Lưu đồ riêng của hàm ${f.name} (vẽ bên dưới lưu đồ chính):`, ...steps(f.body, { start: f.start, end: f.end }).map(x => '   ' + x));
     return {
       pattern: r.name || (pat ? pat.name : null),
-      given: r.given, asked: r.asked, note: notes.join(' '), found: r.found || [],
+      given: r.given, asked: r.asked, note: notes.join(' '), notes, found: r.found || [],
       branches: [...branches(r.prog), ...funcs.flatMap(f => branches(f.body))],
       loops: [...loops(r.prog), ...funcs.flatMap(f => loops(f.body))],
       steps: allSteps, chart: buildAll(r),

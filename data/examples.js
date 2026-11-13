@@ -19,3 +19,24 @@ window.EXAMPLES = [
   'Khai báo struct sinh viên gồm mã, họ tên, điểm. Nhập danh sách n sinh viên, in ra sinh viên có điểm cao nhất.',
   'Dùng vòng lặp do while tính tổng từ 1 đến n.'
 ];
+
+window.EXAMPLES_EN = [
+  'Enter an integer n. Check whether n is even or odd.',
+  'Enter 3 numbers a, b, c. Find the largest number.',
+  'Solve the linear equation ax + b = 0.',
+  'Solve the quadratic equation ax² + bx + c = 0.',
+  'Enter a student score (0-10) and classify: Excellent: score >= 9, Good: 9 > score >= 8, Fair: 8 > score >= 6.5, Average: 6.5 > score >= 5, Weak: 5 > score.',
+  'Calculate the sum of the even numbers from 1 to n.',
+  'Enter a positive integer n. Check whether n is a prime number.',
+  'Enter a score; if it is invalid, ask again until the score is from 0 to 10.',
+  'Enter a year and tell whether it is a leap year.',
+  'Enter x. If x is greater than 100 then print "Large", otherwise print "Small".',
+  'Enter a month number and print how many days it has (use switch case).',
+  'Write a menu program: 1. Add 2. Subtract 3. Multiply 4. Divide 5. Exit. Repeat until the user chooses exit.',
+  'Enter an array of n integers. Calculate the sum and find the largest element.',
+  'Enter an array of n integers and sort it in ascending order.',
+  'Write a function that returns the factorial of n.',
+  'Write a void function that prints the multiplication table of n.',
+  'Define a struct student with fields id, name, score. Enter a list of n students and print the student with the highest score.',
+  'Use a do while loop to calculate the sum from 1 to n.'
+];

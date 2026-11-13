@@ -9,36 +9,37 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Saira:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=10">
+  <link rel="stylesheet" href="css/style.css?v=13">
 </head>
 <body>
   <header class="top">
-    <a class="logo" href="#huong-dan"><span class="mark">◇</span><span class="txt"> Lưu Đồ C</span></a>
+    <a class="logo" href="#huong-dan"><span class="mark">◇</span><span class="txt" data-i18n="title">Lưu Đồ C</span></a>
     <nav class="tabs" role="tablist">
-      <button role="tab" data-tab="huong-dan">Hướng dẫn</button>
-      <button role="tab" data-tab="phan-tich">Phân tích đề</button>
-      <button role="tab" data-tab="ve">Bảng vẽ</button>
+      <button role="tab" data-tab="huong-dan" data-i18n="tabLearn">Hướng dẫn</button>
+      <button role="tab" data-tab="phan-tich" data-i18n="tabAnalyze">Phân tích đề</button>
+      <button role="tab" data-tab="ve" data-i18n="tabDraw">Bảng vẽ</button>
     </nav>
+    <button class="lang" id="btnLang" data-i18n="langBtn" data-i18n-title="langTitle" title="Switch to English">EN</button>
   </header>
 
   <main>
     <!-- Hướng dẫn -->
     <section id="tab-huong-dan" class="view learn">
-      <aside class="lesson-list" id="lessonList" aria-label="Danh sách bài"></aside>
+      <aside class="lesson-list" id="lessonList" aria-label="Danh sách bài" data-i18n-aria="lessonsAria"></aside>
       <article class="lesson" id="lesson"></article>
     </section>
 
     <!-- Phân tích đề -->
     <section id="tab-phan-tich" class="view analyze">
       <div class="ana-input">
-        <h1>Phân tích đề bài</h1>
-        <p class="muted">Gõ hoặc dán đề bài vào đây, hoặc đưa ảnh chụp đề. Trang sẽ tìm: đề cho gì, hỏi gì, có những nhánh nào, có lặp không, rồi gợi ý cách vẽ lưu đồ.</p>
+        <h1 data-i18n="anaTitle">Phân tích đề bài</h1>
+        <p class="muted" data-i18n="anaIntro">Gõ hoặc dán đề bài vào đây, hoặc đưa ảnh chụp đề. Trang sẽ tìm: đề cho gì, hỏi gì, có những nhánh nào, có lặp không, rồi gợi ý cách vẽ lưu đồ.</p>
         <div class="drop" id="dropZone">
-          <textarea id="deBai" rows="4" placeholder="Ví dụ: Nhập vào một số nguyên n. Kiểm tra n là số chẵn hay số lẻ.&#10;Có ảnh đề? Bấm Ctrl+V để dán ảnh, hoặc kéo thả ảnh vào đây."></textarea>
-          <div class="drop-hint">Thả ảnh vào đây để đọc đề</div>
+          <textarea id="deBai" rows="4" data-i18n-ph="anaPlaceholder" placeholder="Ví dụ: Nhập vào một số nguyên n. Kiểm tra n là số chẵn hay số lẻ.&#10;Có ảnh đề? Bấm Ctrl+V để dán ảnh, hoặc kéo thả ảnh vào đây."></textarea>
+          <div class="drop-hint" data-i18n="dropHint">Thả ảnh vào đây để đọc đề</div>
         </div>
         <div class="ocr" id="ocrBox" hidden>
-          <img id="ocrImg" alt="Ảnh đề bài">
+          <img id="ocrImg" alt="Ảnh đề bài" data-i18n-alt="imgAlt">
           <div>
             <div id="ocrStatus">Đang chuẩn bị…</div>
             <progress id="ocrProg" max="1" value="0"></progress>
@@ -46,12 +47,12 @@
           </div>
         </div>
         <div class="row">
-          <button class="primary" id="btnAnalyze">Phân tích đề</button>
-          <button id="btnImg">Tải ảnh đề</button>
+          <button class="primary" id="btnAnalyze" data-i18n="btnAnalyze">Phân tích đề</button>
+          <button id="btnImg" data-i18n="btnImg">Tải ảnh đề</button>
           <input type="file" id="fileImg" accept="image/*" hidden>
-          <span class="muted small">Chạy ngay trên máy bạn, ảnh và đề không gửi đi đâu. Đề lạ thì kết quả chỉ là khung gợi ý.</span>
+          <span class="muted small" data-i18n="anaNote">Chạy ngay trên máy bạn, ảnh và đề không gửi đi đâu. Đề lạ thì kết quả chỉ là khung gợi ý.</span>
         </div>
-        <div class="examples"><span class="muted small">Thử đề mẫu:</span><div id="exampleList"></div></div>
+        <div class="examples"><span class="muted small" data-i18n="tryExamples">Thử đề mẫu:</span><div id="exampleList"></div></div>
       </div>
       <div id="anaResult" class="ana-result"></div>
     </section>
@@ -60,41 +61,44 @@
     <section id="tab-ve" class="view draw">
       <div class="toolbar">
         <div class="group" aria-label="Thêm khối">
-          <button data-add="term" title="Bắt đầu / Kết thúc"><svg viewBox="0 0 40 20"><rect x="2" y="3" width="36" height="14" rx="7"/></svg>Bắt đầu/Kết thúc</button>
-          <button data-add="io" title="Nhập / Xuất"><svg viewBox="0 0 40 20"><polygon points="8,3 38,3 32,17 2,17"/></svg>Nhập/Xuất</button>
-          <button data-add="proc" title="Xử lý"><svg viewBox="0 0 40 20"><rect x="3" y="3" width="34" height="14" rx="1"/></svg>Xử lý</button>
-          <button data-add="dec" title="Điều kiện"><svg viewBox="0 0 40 20"><polygon points="20,1 38,10 20,19 2,10"/></svg>Điều kiện</button>
-          <button data-add="sub" title="Gọi hàm"><svg viewBox="0 0 40 20"><rect x="3" y="3" width="34" height="14" rx="1"/><path d="M8 3v14M32 3v14"/></svg>Gọi hàm</button>
+          <button data-add="term" title="Bắt đầu / Kết thúc" data-i18n-title="addTerm"><svg viewBox="0 0 40 20"><rect x="2" y="3" width="36" height="14" rx="7"/></svg><span data-i18n="addTerm">Bắt đầu/Kết thúc</span></button>
+          <button data-add="io" title="Nhập / Xuất" data-i18n-title="addIo"><svg viewBox="0 0 40 20"><polygon points="8,3 38,3 32,17 2,17"/></svg><span data-i18n="addIo">Nhập/Xuất</span></button>
+          <button data-add="proc" title="Xử lý" data-i18n-title="addProc"><svg viewBox="0 0 40 20"><rect x="3" y="3" width="34" height="14" rx="1"/></svg><span data-i18n="addProc">Xử lý</span></button>
+          <button data-add="dec" title="Điều kiện" data-i18n-title="addDec"><svg viewBox="0 0 40 20"><polygon points="20,1 38,10 20,19 2,10"/></svg><span data-i18n="addDec">Điều kiện</span></button>
+          <button data-add="sub" title="Gọi hàm" data-i18n-title="addSub"><svg viewBox="0 0 40 20"><rect x="3" y="3" width="34" height="14" rx="1"/><path d="M8 3v14M32 3v14"/></svg><span data-i18n="addSub">Gọi hàm</span></button>
         </div>
         <div class="group">
-          <button id="btnConnect" aria-pressed="false">Nối mũi tên</button>
-          <button id="btnUndo">Hoàn tác</button>
-          <button id="btnDel">Xóa mục chọn</button>
+          <button id="btnConnect" aria-pressed="false" data-i18n="btnConnect">Nối mũi tên</button>
+          <button id="btnUndo" data-i18n="btnUndo">Hoàn tác</button>
+          <button id="btnDel" data-i18n="btnDel">Xóa mục chọn</button>
         </div>
         <div class="group">
-          <button class="primary" id="btnCheck">Kiểm tra</button>
-          <select id="tpl" aria-label="Mở lưu đồ mẫu"><option value="">Mở mẫu…</option></select>
-          <button id="btnFit">Xem toàn bộ</button>
-          <button id="btnZoomOut" aria-label="Thu nhỏ">−</button>
-          <button id="btnZoomIn" aria-label="Phóng to">+</button>
-          <button id="btnPng">Tải ảnh PNG</button>
-          <button id="btnClear">Xóa hết</button>
+          <button class="primary" id="btnCheck" data-i18n="btnCheck">Kiểm tra</button>
+          <select id="tpl" aria-label="Mở lưu đồ mẫu" data-i18n-aria="tplOpen"><option value="" data-i18n="tplOpen">Mở mẫu…</option></select>
+          <button id="btnFit" data-i18n="btnFit">Xem toàn bộ</button>
+          <button id="btnZoomOut" aria-label="Thu nhỏ" data-i18n-aria="zoomOut">−</button>
+          <button id="btnZoomIn" aria-label="Phóng to" data-i18n-aria="zoomIn">+</button>
+          <button id="btnPng" data-i18n="btnPng">Tải ảnh PNG</button>
+          <button id="btnClear" data-i18n="btnClear">Xóa hết</button>
         </div>
-        <label class="auto"><input type="checkbox" id="autoLink" checked> Tự nối mũi tên từ khối đang chọn</label>
+        <label class="auto"><input type="checkbox" id="autoLink" checked> <span data-i18n="autoLink">Tự nối mũi tên từ khối đang chọn</span></label>
       </div>
       <div class="status" id="status" aria-live="polite"></div>
       <div class="work">
-        <div class="canvas-wrap"><svg id="canvas" aria-label="Bảng vẽ lưu đồ"></svg></div>
+        <div class="canvas-wrap"><svg id="canvas" aria-label="Bảng vẽ lưu đồ" data-i18n-aria="canvasAria"></svg></div>
         <aside class="panel" id="panel"></aside>
       </div>
     </section>
   </main>
   <div class="toast" id="toast" role="status"></div>
 
-  <script src="data/lessons.js?v=10"></script>
-  <script src="data/examples.js?v=10"></script>
-  <script src="js/chart.js?v=10"></script>
-  <script src="js/analyze.js?v=10"></script>
-  <script src="js/app.js?v=10"></script>
+  <script src="js/i18n.js?v=13"></script>
+  <script src="data/lessons.js?v=13"></script>
+  <script src="data/lessons.en.js?v=13"></script>
+  <script src="data/examples.js?v=13"></script>
+  <script src="js/chart.js?v=13"></script>
+  <script src="js/analyze.js?v=13"></script>
+  <script src="js/analyze-en.js?v=13"></script>
+  <script src="js/app.js?v=13"></script>
 </body>
 </html>

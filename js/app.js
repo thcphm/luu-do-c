@@ -3,7 +3,20 @@
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const fmt = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>');
   const NS = 'http://www.w3.org/2000/svg';
-  const LESSONS = window.LESSONS, SHAPES = window.SHAPES;
+  const EN = () => I18N.lang === 'en';
+  // Bài học theo ngôn ngữ: bản tiếng Anh ghi đè chữ, giữ nguyên hình và tọa độ.
+  const lessonsNow = () => window.LESSONS.map(L => {
+    if (!EN() || !window.LESSONS_EN[L.id]) return L;
+    const E = window.LESSONS_EN[L.id];
+    const M = { ...L, ...E };
+    if (L.chart) M.chart = {
+      nodes: L.chart.nodes.map(n => ({ ...n, text: (E.texts && E.texts[n.id]) || AnalyzerEN.node(n.text) })),
+      edges: L.chart.edges.map(e => ({ ...e, label: e.label ? (e.label === 'Đúng' ? 'True' : 'False') : e.label }))
+    };
+    return M;
+  });
+  let LESSONS = lessonsNow();
+  const shapesNow = () => EN() ? window.SHAPES_EN : window.SHAPES;
   const clone = o => JSON.parse(JSON.stringify(o));
 
   const toastEl = $('#toast');
@@ -49,7 +62,7 @@
   function miniShape(type) {
     const svg = document.createElementNS(NS, 'svg');
     svg.classList.add('chart');
-    const text = { term: 'Bắt đầu', io: 'Nhập a', proc: 'x = a + 1', dec: 'a > b', sub: 'kq = f(a)' }[type];
+    const text = EN() ? { term: 'Start', io: 'Input a', proc: 'x = a + 1', dec: 'a > b', sub: 'res = f(a)' }[type] : { term: 'Bắt đầu', io: 'Nhập a', proc: 'x = a + 1', dec: 'a > b', sub: 'kq = f(a)' }[type];
     const m = { nodes: [{ id: 'm', type, x: 0, y: 0, text }], edges: [] };
     FC.render(svg, m, {});
     FC.fit(svg, m, 6);
@@ -94,24 +107,24 @@
     if (L.shapes) {
       h += '<table class="shape-table"><tbody>';
       for (const k of ['term', 'io', 'proc', 'dec', 'sub']) {
-        const S = SHAPES[k];
-        h += `<tr><td data-shape="${k}"></td><td><b>${esc(S.name)}</b><br><span class="muted">${esc(S.look)}</span><br>Trong C: <code>${esc(S.c)}</code><br><span class="small">${esc(S.tip)}</span></td></tr>`;
+        const S = shapesNow()[k];
+        h += `<tr><td data-shape="${k}"></td><td><b>${esc(S.name)}</b><br><span class="muted">${esc(S.look)}</span><br>${T('inC')} <code>${esc(S.c)}</code><br><span class="small">${esc(S.tip)}</span></td></tr>`;
       }
       h += `<tr><td><svg viewBox="0 0 170 70"><defs><marker id="mk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,1 L10,5 L0,9z" fill="#c9d6e8"/></marker></defs><path d="M20 35 H150" stroke="#c9d6e8" stroke-width="2" marker-end="url(#mk)"/></svg></td>
-        <td><b>Mũi tên</b><br><span class="muted">Đường có đầu nhọn</span><br>Chỉ hướng chương trình chạy tiếp. Mũi tên ra từ khối thoi ghi <b>Đúng</b> hoặc <b>Sai</b>.</td></tr>`;
+        <td><b>${T('arrowName')}</b><br><span class="muted">${T('arrowLook')}</span><br>${T('arrowTip')}</td></tr>`;
       h += '</tbody></table>';
     }
     if (L.chart) {
-      h += `<div class="pair"><div class="card"><h3>Code C</h3><pre class="code">${codeHtml(L.code)}</pre></div>
-        <div class="card"><h3>Lưu đồ</h3><svg class="chart" id="lessonChart"></svg></div></div>`;
+      h += `<div class="pair"><div class="card"><h3>${T('codeC')}</h3><pre class="code">${codeHtml(L.code)}</pre></div>
+        <div class="card"><h3>${T('chart')}</h3><svg class="chart" id="lessonChart"></svg></div></div>`;
     }
     if (L.steps) h += `<ol class="steps">${L.steps.map(s => `<li>${fmt(s)}</li>`).join('')}</ol>`;
-    if (L.tips) h += `<h3>${L.chart ? 'Lưu ý' : 'Lỗi hay gặp'}</h3><ul class="tips">${L.tips.map(t => `<li>${fmt(t)}</li>`).join('')}</ul>`;
-    if (L.practice) h += `<div class="practice"><b>Thử tự vẽ:</b> ${fmt(L.practice)}</div>`;
+    if (L.tips) h += `<h3>${L.chart ? T('notes') : T('mistakes')}</h3><ul class="tips">${L.tips.map(t => `<li>${fmt(t)}</li>`).join('')}</ul>`;
+    if (L.practice) h += `<div class="practice"><b>${T('tryDraw')}</b> ${fmt(L.practice)}</div>`;
     h += '<div class="row">';
-    if (L.chart) h += `<button data-open="${i}">Mở mẫu này trong Bảng vẽ</button>`;
-    h += `<button data-blank>Mở bảng vẽ</button>`;
-    if (i < LESSONS.length - 1) h += `<button class="primary" data-next="${i + 1}">Bài tiếp: ${esc(LESSONS[i + 1].title)} →</button>`;
+    if (L.chart) h += `<button data-open="${i}">${T('openSample')}</button>`;
+    h += `<button data-blank>${T('openBoard')}</button>`;
+    if (i < LESSONS.length - 1) h += `<button class="primary" data-next="${i + 1}">${T('nextLesson')} ${esc(LESSONS[i + 1].title)} →</button>`;
     h += '</div>';
     a.innerHTML = h;
     a.querySelectorAll('[data-shape]').forEach(td => td.append(miniShape(td.dataset.shape)));
@@ -127,28 +140,28 @@
     curLesson = i;
   }
   let curLesson = 0;
-  $('#lessonList').innerHTML = LESSONS.map((L, i) => `<button data-i="${i}"><span class="no">${i + 1}</span>${esc(L.title)}</button>`).join('');
+  const renderLessonList = () => { $('#lessonList').innerHTML = LESSONS.map((L, i) => `<button data-i="${i}"><span class="no">${i + 1}</span>${esc(L.title)}</button>`).join(''); };
+  renderLessonList();
   $('#lessonList').addEventListener('click', e => { const b = e.target.closest('button'); if (b) showLesson(+b.dataset.i); });
 
   // ================= Phân tích đề =================
-  $('#exampleList').innerHTML = window.EXAMPLES.map((t, i) => `<button data-i="${i}">${esc(t)}</button>`).join('');
+  const examplesNow = () => EN() ? window.EXAMPLES_EN : window.EXAMPLES;
+  const renderExamples = () => { $('#exampleList').innerHTML = examplesNow().map((t, i) => `<button data-i="${i}">${esc(t)}</button>`).join(''); };
+  renderExamples();
   $('#exampleList').addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b) return;
-    $('#deBai').value = window.EXAMPLES[+b.dataset.i];
+    $('#deBai').value = examplesNow()[+b.dataset.i];
     runAnalyze();
   });
-  $('#btnAnalyze').addEventListener('click', runAnalyze);
+  $('#btnAnalyze').addEventListener('click', () => runAnalyze());
   $('#deBai').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) runAnalyze(); });
 
   // ---- Đọc đề từ ảnh (OCR chạy trong trình duyệt bằng Tesseract.js) ----
   const TESS_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
   const OCR_STEP = {
-    'loading tesseract core': 'Đang tải bộ đọc chữ…',
-    'initializing tesseract': 'Đang khởi động bộ đọc chữ…',
-    'loading language traineddata': 'Đang tải dữ liệu tiếng Việt (lần đầu hơi lâu)…',
-    'initializing api': 'Đang chuẩn bị…',
-    'recognizing text': 'Đang đọc chữ trong ảnh…'
+    'loading tesseract core': 'ocrCore', 'initializing tesseract': 'ocrInit',
+    'loading language traineddata': 'ocrLang', 'initializing api': 'ocrApi', 'recognizing text': 'ocrRead'
   };
   let ocrWorker = null, ocrBusy = false;
   function loadTesseract() {
@@ -162,22 +175,22 @@
     });
   }
   async function readImage(file) {
-    if (!file || !/^image\//.test(file.type)) return toast('Tệp này không phải ảnh.');
-    if (ocrBusy) return toast('Đang đọc ảnh trước, chờ chút nhé.');
+    if (!file || !/^image\//.test(file.type)) return toast(T('ocrNotImg'));
+    if (ocrBusy) return toast(T('ocrBusy'));
     ocrBusy = true;
     const box = $('#ocrBox'), st = $('#ocrStatus'), pg = $('#ocrProg'), note = $('#ocrNote');
     const img = $('#ocrImg');
     if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
     img.src = URL.createObjectURL(file);
     box.hidden = false;
-    st.textContent = 'Đang chuẩn bị…'; pg.hidden = false; pg.removeAttribute('value'); note.textContent = '';
+    st.textContent = T('ocrApi'); pg.hidden = false; pg.removeAttribute('value'); note.textContent = '';
     $('#btnImg').disabled = true;
     try {
       await loadTesseract();
       if (!ocrWorker) {
-        ocrWorker = await Tesseract.createWorker('vie', 1, {
+        ocrWorker = await Tesseract.createWorker(['vie', 'eng'], 1, {
           logger: m => {
-            if (OCR_STEP[m.status]) st.textContent = OCR_STEP[m.status];
+            if (OCR_STEP[m.status]) st.textContent = T(OCR_STEP[m.status]);
             if (typeof m.progress === 'number') pg.value = m.progress;
           }
         });
@@ -190,18 +203,18 @@
         .trim();
       pg.hidden = true;
       if (!text) {
-        st.textContent = 'Không đọc được chữ nào.';
-        note.textContent = 'Thử ảnh rõ hơn, chụp thẳng, đủ sáng, cắt sát phần đề.';
+        st.textContent = T('ocrNone');
+        note.textContent = T('ocrNoneTip');
         return;
       }
       $('#deBai').value = text;
-      st.textContent = 'Đã đọc xong đề từ ảnh.';
-      note.textContent = 'Máy đọc có thể sai vài chữ hoặc ký hiệu (như x², ≤). Hãy xem lại ô đề bài, sửa nếu cần rồi bấm Phân tích đề lần nữa.';
+      st.textContent = T('ocrDone');
+      note.textContent = T('ocrDoneTip');
       runAnalyze();
     } catch (e) {
       pg.hidden = true;
-      st.textContent = 'Không đọc được ảnh.';
-      note.textContent = 'Cần có mạng ở lần đầu để tải bộ đọc chữ. Hoặc gõ đề vào ô ở trên.';
+      st.textContent = T('ocrFail');
+      note.textContent = T('ocrFailTip');
     } finally {
       ocrBusy = false;
       $('#btnImg').disabled = false;
@@ -228,51 +241,51 @@
   });
 
   let lastAna = null;
-  function runAnalyze() {
+  function runAnalyze(noScroll) {
     const text = $('#deBai').value;
     const out = $('#anaResult');
-    const r = Analyzer.analyze(text);
-    if (!r) { out.innerHTML = ''; toast('Hãy dán đề bài vào ô trước.'); $('#deBai').focus(); return; }
+    const r = AnalyzerEN.analyze(text, I18N.lang);
+    if (!r) { out.innerHTML = ''; toast(T('needText')); $('#deBai').focus(); return; }
     lastAna = r;
-    const li = arr => arr.length ? `<ul>${arr.map(x => `<li>${fmt(x)}</li>`).join('')}</ul>` : '<p class="muted">Không có.</p>';
+    const li = arr => arr.length ? `<ul>${arr.map(x => `<li>${fmt(x)}</li>`).join('')}</ul>` : `<p class="muted">${T('none')}</p>`;
     const IC = { ok: '✓', warn: '!', bad: '✕', info: 'i' };
     let h = r.pattern
-      ? `<span class="badge ok">Nhận ra dạng bài: ${esc(r.pattern)}</span>`
-      : `<span class="badge warn">Chưa nhận ra dạng bài quen thuộc, đây là khung gợi ý</span>`;
-    h += `<div class="card read"><h3>Bước 1. Đọc đề</h3>
+      ? `<span class="badge ok">${T('patternOk')} ${esc(r.pattern)}</span>`
+      : `<span class="badge warn">${T('patternNo')}</span>`;
+    h += `<div class="card read"><h3>${T('step1')}</h3>
       <p class="hl-text">${r.highlight.map(g => g.c ? `<mark class="hl-${g.c}">${esc(g.t)}</mark>` : esc(g.t)).join('')}</p>
-      <p class="legend small"><mark class="hl-in">Nhập</mark><mark class="hl-out">Xuất / câu hỏi</mark><mark class="hl-cond">Điều kiện</mark><mark class="hl-loop">Lặp</mark><mark class="hl-data">Mảng, hàm, struct, switch</mark><mark class="hl-rule">Ràng buộc</mark></p></div>`;
-    h += `<h2 class="step-h">Bước 2. Tách đề</h2><div class="ana-grid">
-      <div class="card given"><h3>Đề cho gì (đầu vào)</h3>${li(r.given)}</div>
-      <div class="card asked"><h3>Đề hỏi gì (đầu ra)</h3>${li(r.asked)}</div>
-      <div class="card"><h3>Biến dùng trong lưu đồ</h3>${li(r.vars)}</div>
-      <div class="card rule"><h3>Ràng buộc trong đề</h3>${r.rules.length ? li(r.rules) : '<p class="muted">Đề không nêu giới hạn dữ liệu.</p>'}</div>
+      <p class="legend small"><mark class="hl-in">${T('lgIn')}</mark><mark class="hl-out">${T('lgOut')}</mark><mark class="hl-cond">${T('lgCond')}</mark><mark class="hl-loop">${T('lgLoop')}</mark><mark class="hl-data">${T('lgData')}</mark><mark class="hl-rule">${T('lgRule')}</mark></p>${r.inputNote ? `<p class="small muted">${esc(r.inputNote)}</p>` : ''}</div>`;
+    h += `<h2 class="step-h">${T('step2')}</h2><div class="ana-grid">
+      <div class="card given"><h3>${T('given')}</h3>${li(r.given)}</div>
+      <div class="card asked"><h3>${T('asked')}</h3>${li(r.asked)}</div>
+      <div class="card"><h3>${T('vars')}</h3>${li(r.vars)}</div>
+      <div class="card rule"><h3>${T('rules')}</h3>${r.rules.length ? li(r.rules) : `<p class="muted">${T('noRules')}</p>`}</div>
     </div>`;
-    h += `<h2 class="step-h">Bước 3. Tìm nhánh và vòng lặp</h2><div class="ana-grid">
-      <div class="card branch"><h3>Các nhánh (khối thoi)</h3>${li(r.branches)}</div>
-      <div class="card loop"><h3>Có lặp không</h3>${r.loops.length ? li(r.loops) : '<p class="muted">Không cần vòng lặp.</p>'}</div>
+    h += `<h2 class="step-h">${T('step3')}</h2><div class="ana-grid">
+      <div class="card branch"><h3>${T('branches')}</h3>${li(r.branches)}</div>
+      <div class="card loop"><h3>${T('loops')}</h3>${r.loops.length ? li(r.loops) : `<p class="muted">${T('noLoop')}</p>`}</div>
     </div>`;
-    if (r.funcs.length) h += `<div class="card" style="margin-top:14px"><h3>Hàm</h3>${li(r.funcs.map(f => `${f.name}(${f.params.join(', ')}): ${f.ret ? 'có trả về (' + f.ret + ')' : 'không trả về (void)'}`))}</div>`;
-    if (r.table) h += `<div class="card" style="margin-top:14px"><h3>Bảng mốc đọc từ đề</h3><div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Kết quả</th><th>Trong đề ghi</th><th>Khoảng điểm</th><th>Khối thoi so</th></tr></thead>
+    if (r.funcs.length) h += `<div class="card" style="margin-top:14px"><h3>${T('funcs')}</h3>${li(r.funcs.map(f => `${f.name}(${f.params.join(', ')}): ${f.ret ? T('fnRet', f.ret) : T('fnVoid')}`))}</div>`;
+    if (r.table) h += `<div class="card" style="margin-top:14px"><h3>${T('tbl')}</h3><div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>${T('tResult')}</th><th>${T('tWritten')}</th><th>${T('tRange')}</th><th>${T('tBlock')}</th></tr></thead>
       <tbody>${r.table.map(t => `<tr><td>${esc(t.name)}</td><td>${esc(t.raw)}</td><td>${esc(t.range)}</td><td><code>${esc(t.block)}</code></td></tr>`).join('')}</tbody></table></div></div>`;
-    if (r.checks.length) h += `<div class="card" style="margin-top:14px"><h3>Soát lại đề</h3><ul class="issues">${r.checks.map(c => `<li class="${c.lv}"><span class="ic">${IC[c.lv]}</span>${esc(c.msg)}</li>`).join('')}</ul></div>`;
-    if (r.found.length) h += `<div class="card" style="margin-top:14px"><h3>Câu chữ trong đề → khối</h3>${li(r.found)}</div>`;
+    if (r.checks.length) h += `<div class="card" style="margin-top:14px"><h3>${T('audit')}</h3><ul class="issues">${r.checks.map(c => `<li class="${c.lv}"><span class="ic">${IC[c.lv]}</span>${esc(c.msg)}</li>`).join('')}</ul></div>`;
+    if (r.found.length) h += `<div class="card" style="margin-top:14px"><h3>${T('found')}</h3>${li(r.found)}</div>`;
     if (r.note) h += `<p class="note" style="margin-top:14px">${fmt(r.note)}</p>`;
-    h += `<h2 class="step-h">Bước 4. Vẽ lưu đồ</h2><div class="pair">
-      <div class="card"><h3>Hướng vẽ từng bước</h3><ol class="howto">${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol></div>
-      <div class="card"><h3>Lưu đồ gợi ý</h3><svg class="chart" id="anaChart"></svg>
-        <div class="row"><button class="primary" id="anaOpen">Mở trong Bảng vẽ để sửa</button></div></div>
+    h += `<h2 class="step-h">${T('step4')}</h2><div class="pair">
+      <div class="card"><h3>${T('howto')}</h3><ol class="howto">${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol></div>
+      <div class="card"><h3>${T('suggested')}</h3><svg class="chart" id="anaChart"></svg>
+        <div class="row"><button class="primary" id="anaOpen">${T('openEdit')}</button></div></div>
     </div>`;
-    if (r.tests.length) h += `<h2 class="step-h">Bước 5. Chạy thử lưu đồ</h2><div class="card"><p class="small muted">Đi theo lưu đồ gợi ý với từng bộ dữ liệu. Tự dò lưu đồ của bạn xem có ra cùng kết quả không.</p>
-      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nhập</th><th>Đi qua</th><th>Kết quả in ra</th></tr></thead>
-      <tbody>${r.tests.map(t => `<tr><td><code>${esc(t.input)}</code></td><td class="small">${esc(t.path.join(' → ') || 'thẳng xuống')}</td><td>${t.output.map(esc).join('<br>') || '<span class="muted">(không in gì)</span>'}</td></tr>`).join('')}</tbody></table></div></div>`;
+    if (r.tests.length) h += `<h2 class="step-h">${T('step5')}</h2><div class="card"><p class="small muted">${T('runIntro')}</p>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>${T('tIn')}</th><th>${T('tPath')}</th><th>${T('tOut')}</th></tr></thead>
+      <tbody>${r.tests.map(t => `<tr><td><code>${esc(t.input)}</code></td><td class="small">${esc(t.path.join(' → ') || T('straight'))}</td><td>${t.output.map(esc).join('<br>') || `<span class="muted">${T('noPrint')}</span>`}</td></tr>`).join('')}</tbody></table></div></div>`;
     out.innerHTML = h;
     const svg = $('#anaChart');
     FC.render(svg, r.chart, {});
     FC.fit(svg, r.chart, 30);
-    $('#anaOpen').addEventListener('click', () => openInEditor(r.chart, 'lưu đồ gợi ý'));
-    out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    $('#anaOpen').addEventListener('click', () => openInEditor(r.chart, T('suggestedName')));
+    if (!noScroll) out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   }
 
   // ================= Bảng vẽ =================
@@ -317,13 +330,13 @@
   function setStatus(t) { $('#status').textContent = t || ''; }
 
   function defaultText(type) {
-    if (type === 'term') return model.nodes.some(n => n.type === 'term' && /bắt đầu/i.test(n.text)) ? 'Kết thúc' : 'Bắt đầu';
-    return { io: 'Nhập a', proc: 'x = a + 1', dec: 'a > b', sub: 'kq = tenHam(a)' }[type];
+    if (type === 'term') return model.nodes.some(n => n.type === 'term' && /^\s*(bắt đầu|start|begin)\s*$/i.test(n.text)) ? T('defEnd') : T('defStart');
+    return { io: T('defIo'), proc: T('defProc'), dec: T('defDec'), sub: T('defSub') }[type];
   }
   function canGoOut(n) {
     const o = outs(n.id).length;
     if (n.type === 'dec') return o < 2;
-    if (n.type === 'term' && /kết thúc/i.test(n.text)) return false;
+    if (n.type === 'term' && /kết thúc|^\s*end|trả về|return/i.test(n.text)) return false;
     return o < 1;
   }
   const grid = v => Math.round(v / 10) * 10;
@@ -362,21 +375,22 @@
   }
 
   function makeEdge(a, b, withSnap = true) {
-    if (a === b) return toast('Không nối một khối với chính nó.');
-    if (model.edges.some(e => e.from === a && e.to === b)) return toast('Đã có mũi tên này rồi.');
+    if (a === b) return toast(T('selfLink'));
+    if (model.edges.some(e => e.from === a && e.to === b)) return toast(T('dupLink'));
     if (withSnap) snap();
     const s = node(a);
     const e = { id: uid('e'), from: a, to: b };
     if (s.type === 'dec') {
-      const labels = outs(a).map(x => x.label);
-      e.label = !labels.includes('Đúng') ? 'Đúng' : !labels.includes('Sai') ? 'Sai' : '';
-      if (outs(a).length >= 2) toast('Khối điều kiện chỉ nên có 2 mũi tên ra.');
-    } else if (outs(a).length >= 1) toast('Khối này đã có mũi tên ra. Muốn rẽ nhánh hãy dùng khối Điều kiện.');
+      const labels = outs(a).map(x => (x.label || '').toLowerCase());
+      const hasYes = labels.some(l => l === 'đúng' || l === 'true'), hasNo = labels.some(l => l === 'sai' || l === 'false');
+      e.label = !hasYes ? T('yes') : !hasNo ? T('no') : '';
+      if (outs(a).length >= 2) toast(T('twoOuts'));
+    } else if (outs(a).length >= 1) toast(T('oneOut'));
     model.edges.push(e);
   }
 
   function deleteSel() {
-    if (!sel) return toast('Chưa chọn khối hay mũi tên nào.');
+    if (!sel) return toast(T('noSel'));
     snap();
     if (sel.kind === 'node') {
       model.nodes = model.nodes.filter(n => n.id !== sel.id);
@@ -389,20 +403,20 @@
     connectMode = on;
     connectFrom = null;
     $('#btnConnect').setAttribute('aria-pressed', on);
-    setStatus(on ? 'Nối mũi tên: bấm khối bắt đầu của mũi tên.' : '');
+    setStatus(on ? T('conn1') : '');
     drawCanvas();
   }
   function clickConnect(id) {
     if (!connectFrom) {
       connectFrom = id;
-      setStatus('Giờ bấm khối mà mũi tên chỉ tới. (Bấm lại khối cũ để hủy)');
+      setStatus(T('conn2'));
     } else if (connectFrom === id) {
       connectFrom = null;
-      setStatus('Nối mũi tên: bấm khối bắt đầu của mũi tên.');
+      setStatus(T('conn1'));
     } else {
       makeEdge(connectFrom, id);
       connectFrom = null;
-      setStatus('Đã nối. Bấm khối khác để nối tiếp, hoặc tắt "Nối mũi tên".');
+      setStatus(T('conn3'));
     }
     drawCanvas();
   }
@@ -482,23 +496,27 @@
   $('#btnCheck').addEventListener('click', () => { checked = true; runCheck(true); drawCanvas(); renderPanel(); });
   $('#btnClear').addEventListener('click', () => {
     if (!model.nodes.length) return;
-    if (!confirm('Xóa hết lưu đồ trên bảng vẽ? (Có thể bấm Hoàn tác để lấy lại)')) return;
+    if (!confirm(T('clearAsk'))) return;
     snap(); model = { nodes: [], edges: [] }; checked = false; badIds = new Set(); select(null);
   });
   $('#btnPng').addEventListener('click', async () => {
-    if (!model.nodes.length) return toast('Bảng vẽ đang trống.');
+    if (!model.nodes.length) return toast(T('empty'));
     try {
       const blob = await FC.toPng(model);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'luu-do.png';
+      a.download = T('pngName');
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-      toast('Đã tải ảnh luu-do.png (nền trắng, dán được vào Word).');
-    } catch (e) { toast('Không tạo được ảnh. Thử lại nhé.'); }
+      toast(T('pngDone'));
+    } catch (e) { toast(T('pngFail')); }
   });
   const tpl = $('#tpl');
-  LESSONS.forEach((L, i) => { if (L.chart) tpl.insertAdjacentHTML('beforeend', `<option value="${i}">${esc(L.title)}</option>`); });
+  const renderTpl = () => {
+    tpl.innerHTML = `<option value="">${esc(T('tplOpen'))}</option>`;
+    LESSONS.forEach((L, i) => { if (L.chart) tpl.insertAdjacentHTML('beforeend', `<option value="${i}">${esc(L.title)}</option>`); });
+  };
+  renderTpl();
   tpl.addEventListener('change', () => {
     const i = tpl.value;
     tpl.value = '';
@@ -506,14 +524,14 @@
   });
 
   function doUndo() {
-    if (!undo.length) return toast('Không còn gì để hoàn tác.');
+    if (!undo.length) return toast(T('noUndo'));
     model = JSON.parse(undo.pop());
     if (sel && !(sel.kind === 'node' ? node(sel.id) : model.edges.some(e => e.id === sel.id))) sel = null;
     renderPanel(); drawCanvas();
   }
 
   function openInEditor(chart, name) {
-    if (model.nodes.length && !confirm(`Thay lưu đồ trên bảng vẽ bằng ${name}? (Có thể bấm Hoàn tác để lấy lại)`)) return;
+    if (model.nodes.length && !confirm(T('replaceAsk', name))) return;
     snap();
     model = clone(chart);
     model.nodes.forEach(n => delete n.ln);
@@ -540,31 +558,26 @@
     const n = sel && sel.kind === 'node' ? node(sel.id) : null;
     const e = sel && sel.kind === 'edge' ? model.edges.find(x => x.id === sel.id) : null;
     if (n) {
-      const S = SHAPES[n.type];
+      const S = shapesNow()[n.type];
       h += `<div class="kind"><span class="dot" style="background:${COLOR[n.type]}"></span><h3 style="margin:0">${esc(S.name)}</h3></div>
-        <label for="nodeText">Chữ trong khối (Enter để xuống dòng)</label>
+        <label for="nodeText">${T('textLabel')}</label>
         <textarea id="nodeText" rows="3">${esc(n.text)}</textarea>
-        <div class="btn-row"><button id="pDel">Xóa khối</button></div>
-        <div class="hint"><b>Trong C:</b> <code>${esc(S.c)}</code><br>${esc(S.tip)}</div>`;
+        <div class="btn-row"><button id="pDel">${T('delBlock')}</button></div>
+        <div class="hint"><b>${T('inC')}</b> <code>${esc(S.c)}</code><br>${esc(S.tip)}</div>`;
     } else if (e) {
       const a = node(e.from), b = node(e.to);
-      h += `<h3>Mũi tên</h3><p class="small muted">Từ "${esc(a ? a.text : '?')}" tới "${esc(b ? b.text : '?')}"</p>
-        <label for="edgeLabel">Nhãn</label>
-        <select id="edgeLabel"><option value="">Không ghi</option><option>Đúng</option><option>Sai</option></select>
-        <div class="btn-row"><button id="pFlip">Đổi chiều</button><button id="pDel">Xóa mũi tên</button></div>
-        <div class="hint">Mũi tên đi ra từ khối Điều kiện phải ghi <b>Đúng</b> hoặc <b>Sai</b>.</div>`;
+      const opts = [...new Set([T('yes'), T('no'), e.label].filter(Boolean))];
+      h += `<h3>${T('arrow')}</h3><p class="small muted">${esc(T('fromTo', a ? a.text : '?', b ? b.text : '?'))}</p>
+        <label for="edgeLabel">${T('label')}</label>
+        <select id="edgeLabel"><option value="">${T('noLabel')}</option>${opts.map(o => `<option>${esc(o)}</option>`).join('')}</select>
+        <div class="btn-row"><button id="pFlip">${T('flip')}</button><button id="pDel">${T('delArrow')}</button></div>
+        <div class="hint">${T('arrowHint')}</div>`;
     } else {
-      h += `<h3>Cách dùng</h3><ol>
-        <li>Bấm một khối trên thanh công cụ để thêm vào bảng.</li>
-        <li>Đang chọn một khối mà thêm khối mới thì mũi tên tự nối xuống.</li>
-        <li>Kéo khối để di chuyển. Kéo nền để xem chỗ khác. Lăn chuột để phóng to.</li>
-        <li>Bấm 2 lần vào khối để sửa chữ.</li>
-        <li>"Nối mũi tên": bấm khối đầu, rồi bấm khối cuối.</li>
-        <li>Bấm <b>Kiểm tra</b> để xem lưu đồ đúng quy tắc chưa.</li></ol>
-        <p class="small muted" style="margin-top:10px">Bài vẽ tự lưu trên trình duyệt này. Phím tắt: Ctrl+Z hoàn tác, Delete xóa, Esc bỏ chọn.</p>`;
+      h += `<h3>${T('howUse')}</h3><ol>${T('use').map(x => `<li>${x}</li>`).join('')}</ol>
+        <p class="small muted" style="margin-top:10px">${T('saved')}</p>`;
     }
     if (checked) {
-      h += `<hr><h3>Kết quả kiểm tra</h3><ul class="issues">${issues.map((it, i) =>
+      h += `<hr><h3>${T('checkRes')}</h3><ul class="issues">${issues.map((it, i) =>
         `<li class="${it.lv}" data-i="${i}"><span class="ic">${it.lv === 'ok' ? '✓' : it.lv === 'bad' ? '✕' : '!'}</span>${esc(it.msg)}</li>`).join('')}</ul>`;
     }
     p.innerHTML = h;
@@ -600,67 +613,68 @@
     const I = [];
     const add = (lv, msg, id) => I.push({ lv, msg, id });
     const N = model.nodes;
-    const name = n => `"${String(n.text).replace(/\n/g, ' ').trim() || '(trống)'}"`;
-    if (!N.length) add('bad', 'Bảng vẽ trống. Hãy thêm khối Bắt đầu.');
+    const name = n => `"${String(n.text).replace(/\n/g, ' ').trim() || T('blank')}"`;
+    if (!N.length) add('bad', T('cEmpty'));
     const starts = N.filter(n => n.type === 'term' && /^\s*(bắt đầu|bat dau|begin|start)/i.test(n.text));
     const ends = N.filter(n => n.type === 'term' && /kết thúc|ket thuc|end|stop|trả về|tra ve|return/i.test(n.text));
     if (N.length) {
-      if (!starts.length) add('bad', 'Chưa có khối Bắt đầu (hình viên thuốc ghi "Bắt đầu").');
+      if (!starts.length) add('bad', T('cNoStart'));
       // Lưu đồ chính có 1 khối "Bắt đầu"; mỗi hàm có thêm 1 khối "Bắt đầu tênHàm(...)".
       const plainStarts = starts.filter(n => /^\s*(bắt đầu|bat dau|begin|start)\s*$/i.test(n.text));
-      if (plainStarts.length > 1) plainStarts.slice(1).forEach(n => add('bad', 'Lưu đồ chính chỉ có 1 khối Bắt đầu. Lưu đồ của hàm ghi "Bắt đầu tênHàm(...)".', n.id));
-      if (!ends.length) add('bad', 'Chưa có khối Kết thúc.');
+      if (plainStarts.length > 1) plainStarts.slice(1).forEach(n => add('bad', T('cTwoStart'), n.id));
+      if (!ends.length) add('bad', T('cNoEnd'));
     }
     for (const n of N) {
       const o = outs(n.id), i = ins(n.id);
-      if (!String(n.text).trim()) add('warn', 'Có khối chưa ghi chữ.', n.id);
+      if (!String(n.text).trim()) add('warn', T('cNoText'), n.id);
       if (n.type === 'term') {
         if (starts.includes(n)) {
-          if (i.length) add('bad', 'Không có mũi tên nào được đi vào khối Bắt đầu.', n.id);
-          if (o.length !== 1) add('bad', 'Khối Bắt đầu cần đúng 1 mũi tên đi ra.', n.id);
+          if (i.length) add('bad', T('cStartIn'), n.id);
+          if (o.length !== 1) add('bad', T('cStartOut'), n.id);
         } else if (ends.includes(n)) {
-          if (o.length) add('bad', 'Khối Kết thúc không có mũi tên đi ra.', n.id);
-          if (!i.length) add('bad', 'Chưa có mũi tên nào đi tới khối Kết thúc.', n.id);
-        } else add('warn', `Khối viên thuốc ${name(n)} nên ghi "Bắt đầu" hoặc "Kết thúc".`, n.id);
+          if (o.length) add('bad', T('cEndOut'), n.id);
+          if (!i.length) add('bad', T('cEndIn'), n.id);
+        } else add('warn', T('cTermName', name(n)), n.id);
         continue;
       }
-      if (!i.length) add('bad', `Khối ${name(n)} chưa có mũi tên đi vào.`, n.id);
+      if (!i.length) add('bad', T('cNoIn', name(n)), n.id);
       if (n.type === 'dec') {
-        if (o.length !== 2) add('bad', `Khối điều kiện ${name(n)} cần đúng 2 mũi tên ra (Đúng và Sai), đang có ${o.length}.`, n.id);
+        if (o.length !== 2) add('bad', T('cDecOuts', name(n), o.length), n.id);
         else {
           const ls = o.map(e => (e.label || '').trim().toLowerCase());
-          if (!(ls.includes('đúng') && ls.includes('sai'))) add('warn', `Ghi nhãn Đúng và Sai cho 2 mũi tên ra từ ${name(n)}.`, n.id);
+          const y = ls.some(l => ['đúng', 'true', 'yes', 'có'].includes(l)), f = ls.some(l => ['sai', 'false', 'no', 'không'].includes(l));
+          if (!(y && f)) add('warn', T('cDecLabels', name(n)), n.id);
         }
-        if (!/[<>=!]|&&|\|\|/.test(n.text)) add('warn', `Điều kiện ${name(n)} nên là phép so sánh, ví dụ a > b.`, n.id);
+        if (!/[<>=!]|&&|\|\|/.test(n.text)) add('warn', T('cDecCmp', name(n)), n.id);
       } else {
-        if (!o.length) add('bad', `Khối ${name(n)} chưa có mũi tên đi ra.`, n.id);
-        if (o.length > 1) add('bad', `Khối ${name(n)} có ${o.length} mũi tên ra. Muốn rẽ nhánh hãy dùng khối Điều kiện (thoi).`, n.id);
+        if (!o.length) add('bad', T('cNoOut', name(n)), n.id);
+        if (o.length > 1) add('bad', T('cManyOut', name(n), o.length), n.id);
       }
-      if (n.type === 'proc' && /printf|scanf|\bnhập\b|\bxuất\b|\bin ra\b/i.test(n.text)) add('warn', `${name(n)} là nhập/xuất, nên dùng hình bình hành.`, n.id);
-      if (n.type === 'proc' && /^\s*([\w.]+\s*=\s*)?[A-Za-z_]\w*\s*\([^)]*\)\s*$/.test(n.text) && !/sqrt|abs|pow/.test(n.text)) add('warn', `${name(n)} là gọi hàm, nên dùng khối Gọi hàm (chữ nhật 2 vạch đứng).`, n.id);
-      if (n.type === 'sub' && !/\(/.test(n.text)) add('warn', `Khối gọi hàm ${name(n)} nên ghi tên hàm kèm ngoặc, ví dụ kq = giaiThua(n).`, n.id);
-      if (n.type === 'proc' && /^\s*(if|while|for|nếu)\b/i.test(n.text)) add('warn', `${name(n)} là điều kiện, nên dùng hình thoi.`, n.id);
-      if (n.type === 'io' && !/^\s*(nhập|xuất|in|đọc|ghi|hiển thị|printf|scanf|input|output|print)/i.test(n.text)) add('warn', `Khối Nhập/Xuất ${name(n)} nên bắt đầu bằng "Nhập" hoặc "Xuất".`, n.id);
+      if (n.type === 'proc' && /printf|scanf|\bnhập\b|\bxuất\b|\bin ra\b|^\s*(input|output|print|read|display)\b/i.test(n.text)) add('warn', T('cProcIo', name(n)), n.id);
+      if (n.type === 'proc' && /^\s*([\w.]+\s*=\s*)?[A-Za-z_]\w*\s*\([^)]*\)\s*$/.test(n.text) && !/sqrt|abs|pow/.test(n.text)) add('warn', T('cProcCall', name(n)), n.id);
+      if (n.type === 'sub' && !/\(/.test(n.text)) add('warn', T('cSubParen', name(n)), n.id);
+      if (n.type === 'proc' && /^\s*(if|while|for|nếu)\b/i.test(n.text)) add('warn', T('cProcIf', name(n)), n.id);
+      if (n.type === 'io' && !/^\s*(nhập|xuất|in|đọc|ghi|hiển thị|printf|scanf|input|output|print|read|display|write)/i.test(n.text)) add('warn', T('cIoWord', name(n)), n.id);
     }
-    for (const e of model.edges) if (e.from === e.to) add('warn', 'Có mũi tên tự nối vào chính khối của nó.', e.from);
+    for (const e of model.edges) if (e.from === e.to) add('warn', T('cSelf'), e.from);
     if (starts.length) {
       const seen = new Set([starts[0].id]), q = [starts[0].id];
       while (q.length) for (const e of outs(q.shift())) if (!seen.has(e.to)) { seen.add(e.to); q.push(e.to); }
-      for (const n of N) if (!seen.has(n.id) && !starts.includes(n)) add('bad', `Không đi tới được khối ${name(n)} từ Bắt đầu.`, n.id);
+      for (const n of N) if (!seen.has(n.id) && !starts.includes(n)) add('bad', T('cUnreach', name(n)), n.id);
     }
     if (ends.length) {
       const seen = new Set(ends.map(n => n.id)), q = ends.map(n => n.id);
       while (q.length) for (const e of ins(q.shift())) if (!seen.has(e.from)) { seen.add(e.from); q.push(e.from); }
-      for (const n of N) if (!seen.has(n.id)) add('warn', `Từ khối ${name(n)} không đi tới được Kết thúc (có thể lặp mãi).`, n.id);
+      for (const n of N) if (!seen.has(n.id)) add('warn', T('cNoEndPath', name(n)), n.id);
     }
     const order = { bad: 0, warn: 1 };
     I.sort((a, b) => order[a.lv] - order[b.lv]);
-    if (!I.length) I.push({ lv: 'ok', msg: 'Lưu đồ đúng quy tắc. Tốt lắm!' });
+    if (!I.length) I.push({ lv: 'ok', msg: T('cOk') });
     issues = I;
     badIds = new Set(I.filter(x => x.id && x.lv !== 'ok').map(x => x.id));
     if (announce) {
       const nb = I.filter(x => x.lv === 'bad').length, nw = I.filter(x => x.lv === 'warn').length;
-      toast(I[0].lv === 'ok' ? 'Lưu đồ đúng quy tắc!' : `Có ${nb} lỗi, ${nw} lưu ý. Xem bảng bên phải.`);
+      toast(I[0].lv === 'ok' ? T('cOkToast') : T('cSum', nb, nw));
     }
     if (checked && $('#panel .issues')) {
       // cập nhật danh sách lỗi mà không vẽ lại ô đang gõ
@@ -676,14 +690,30 @@
     }
   }
 
+  // ================= Đổi ngôn ngữ =================
+  function rerenderAll() {
+    I18N.apply();
+    LESSONS = lessonsNow();
+    renderLessonList();
+    renderTpl();
+    renderExamples();
+    showLesson(Math.min(curLesson, LESSONS.length - 1));
+    renderPanel();
+    if (checked) { runCheck(false); renderPanel(); }
+    if ($('#tab-ve').classList.contains('on')) drawCanvas();
+    if (lastAna && $('#deBai').value.trim()) runAnalyze(true);
+  }
+  $('#btnLang').addEventListener('click', () => { I18N.set(I18N.lang === 'vi' ? 'en' : 'vi'); rerenderAll(); });
+
   // ================= Khởi động =================
+  I18N.apply();
   if (!model.nodes.length) model = clone(LESSONS[1].chart), model.nodes.forEach(n => delete n.ln);
   showLesson(0);
   renderPanel();
   showTab(location.hash.slice(1));
   document.fonts && document.fonts.ready.then(() => {
     showLesson(curLesson);
-    if (lastAna) runAnalyze();
+    if (lastAna) runAnalyze(true);
     if ($('#tab-ve').classList.contains('on')) drawCanvas();
   });
 })();
