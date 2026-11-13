@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Saira:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=5">
+  <link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
   <header class="top">
@@ -32,11 +32,24 @@
     <section id="tab-phan-tich" class="view analyze">
       <div class="ana-input">
         <h1>Phân tích đề bài</h1>
-        <p class="muted">Dán đề bài vào đây. Trang sẽ tìm: đề cho gì, hỏi gì, có những nhánh nào, có lặp không, rồi gợi ý cách vẽ lưu đồ.</p>
-        <textarea id="deBai" rows="4" placeholder="Ví dụ: Nhập vào một số nguyên n. Kiểm tra n là số chẵn hay số lẻ."></textarea>
+        <p class="muted">Gõ hoặc dán đề bài vào đây, hoặc đưa ảnh chụp đề. Trang sẽ tìm: đề cho gì, hỏi gì, có những nhánh nào, có lặp không, rồi gợi ý cách vẽ lưu đồ.</p>
+        <div class="drop" id="dropZone">
+          <textarea id="deBai" rows="4" placeholder="Ví dụ: Nhập vào một số nguyên n. Kiểm tra n là số chẵn hay số lẻ.&#10;Có ảnh đề? Bấm Ctrl+V để dán ảnh, hoặc kéo thả ảnh vào đây."></textarea>
+          <div class="drop-hint">Thả ảnh vào đây để đọc đề</div>
+        </div>
+        <div class="ocr" id="ocrBox" hidden>
+          <img id="ocrImg" alt="Ảnh đề bài">
+          <div>
+            <div id="ocrStatus">Đang chuẩn bị…</div>
+            <progress id="ocrProg" max="1" value="0"></progress>
+            <p class="muted small" id="ocrNote"></p>
+          </div>
+        </div>
         <div class="row">
           <button class="primary" id="btnAnalyze">Phân tích đề</button>
-          <span class="muted small">Phân tích bằng từ khóa, chạy ngay trên máy bạn. Đề lạ thì kết quả chỉ là khung gợi ý.</span>
+          <button id="btnImg">Tải ảnh đề</button>
+          <input type="file" id="fileImg" accept="image/*" hidden>
+          <span class="muted small">Chạy ngay trên máy bạn, ảnh và đề không gửi đi đâu. Đề lạ thì kết quả chỉ là khung gợi ý.</span>
         </div>
         <div class="examples"><span class="muted small">Thử đề mẫu:</span><div id="exampleList"></div></div>
       </div>
@@ -77,10 +90,10 @@
   </main>
   <div class="toast" id="toast" role="status"></div>
 
-  <script src="data/lessons.js?v=5"></script>
-  <script src="data/examples.js?v=5"></script>
-  <script src="js/chart.js?v=5"></script>
-  <script src="js/analyze.js?v=5"></script>
-  <script src="js/app.js?v=5"></script>
+  <script src="data/lessons.js?v=6"></script>
+  <script src="data/examples.js?v=6"></script>
+  <script src="js/chart.js?v=6"></script>
+  <script src="js/analyze.js?v=6"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>

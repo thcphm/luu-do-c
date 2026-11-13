@@ -86,6 +86,19 @@ svg.chart .node.hl .shape { stroke-width: 3; }
 .examples > div { display: flex; flex-wrap: wrap; gap: 6px; }
 .examples button { font-size: .85rem; min-height: 34px; padding: 4px 10px; border-radius: 99px; color: var(--muted); max-width: 100%; text-align: left; }
 .ana-result:empty { display: none; }
+.drop { position: relative; }
+.drop-hint {
+  position: absolute; inset: 0; display: none; place-items: center; border-radius: 10px;
+  border: 2px dashed var(--brand); background: rgba(5, 7, 13, .85); color: var(--brand); font-weight: 600; pointer-events: none;
+}
+.drop.over .drop-hint { display: grid; }
+.ocr { display: flex; gap: 14px; align-items: flex-start; margin-top: 12px; background: var(--wall); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.ocr[hidden] { display: none; }
+.ocr img { width: 140px; max-height: 110px; object-fit: contain; border-radius: 8px; background: var(--floor); flex: none; }
+.ocr > div { flex: 1; min-width: 0; }
+.ocr progress { width: 100%; height: 8px; accent-color: var(--brand); margin-top: 6px; }
+.ocr p { margin: 6px 0 0; }
+@media (max-width: 520px) { .ocr img { width: 90px; } }
 .ana-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .badge { display: inline-block; padding: 3px 12px; border-radius: 99px; font-size: .9rem; margin-bottom: 12px; }
 .badge.ok { background: rgba(134, 226, 138, .14); color: var(--terminal); }

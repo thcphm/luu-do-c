@@ -141,6 +141,92 @@
   $('#btnAnalyze').addEventListener('click', runAnalyze);
   $('#deBai').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) runAnalyze(); });
 
+  // ---- Đọc đề từ ảnh (OCR chạy trong trình duyệt bằng Tesseract.js) ----
+  const TESS_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+  const OCR_STEP = {
+    'loading tesseract core': 'Đang tải bộ đọc chữ…',
+    'initializing tesseract': 'Đang khởi động bộ đọc chữ…',
+    'loading language traineddata': 'Đang tải dữ liệu tiếng Việt (lần đầu hơi lâu)…',
+    'initializing api': 'Đang chuẩn bị…',
+    'recognizing text': 'Đang đọc chữ trong ảnh…'
+  };
+  let ocrWorker = null, ocrBusy = false;
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve();
+    return new Promise((ok, fail) => {
+      const s = document.createElement('script');
+      s.src = TESS_URL;
+      s.onload = ok;
+      s.onerror = () => fail(new Error('load'));
+      document.head.append(s);
+    });
+  }
+  async function readImage(file) {
+    if (!file || !/^image\//.test(file.type)) return toast('Tệp này không phải ảnh.');
+    if (ocrBusy) return toast('Đang đọc ảnh trước, chờ chút nhé.');
+    ocrBusy = true;
+    const box = $('#ocrBox'), st = $('#ocrStatus'), pg = $('#ocrProg'), note = $('#ocrNote');
+    const img = $('#ocrImg');
+    if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+    img.src = URL.createObjectURL(file);
+    box.hidden = false;
+    st.textContent = 'Đang chuẩn bị…'; pg.hidden = false; pg.removeAttribute('value'); note.textContent = '';
+    $('#btnImg').disabled = true;
+    try {
+      await loadTesseract();
+      if (!ocrWorker) {
+        ocrWorker = await Tesseract.createWorker('vie', 1, {
+          logger: m => {
+            if (OCR_STEP[m.status]) st.textContent = OCR_STEP[m.status];
+            if (typeof m.progress === 'number') pg.value = m.progress;
+          }
+        });
+      }
+      const { data } = await ocrWorker.recognize(file);
+      const text = (data.text || '')
+        .replace(/-\n(?=\p{Ll})/gu, '')
+        .replace(/[ \t]*\n[ \t]*/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      pg.hidden = true;
+      if (!text) {
+        st.textContent = 'Không đọc được chữ nào.';
+        note.textContent = 'Thử ảnh rõ hơn, chụp thẳng, đủ sáng, cắt sát phần đề.';
+        return;
+      }
+      $('#deBai').value = text;
+      st.textContent = 'Đã đọc xong đề từ ảnh.';
+      note.textContent = 'Máy đọc có thể sai vài chữ hoặc ký hiệu (như x², ≤). Hãy xem lại ô đề bài, sửa nếu cần rồi bấm Phân tích đề lần nữa.';
+      runAnalyze();
+    } catch (e) {
+      pg.hidden = true;
+      st.textContent = 'Không đọc được ảnh.';
+      note.textContent = 'Cần có mạng ở lần đầu để tải bộ đọc chữ. Hoặc gõ đề vào ô ở trên.';
+    } finally {
+      ocrBusy = false;
+      $('#btnImg').disabled = false;
+    }
+  }
+  $('#btnImg').addEventListener('click', () => $('#fileImg').click());
+  $('#fileImg').addEventListener('change', e => { readImage(e.target.files[0]); e.target.value = ''; });
+  document.addEventListener('paste', e => {
+    if (!$('#tab-phan-tich').classList.contains('on')) return;
+    const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'));
+    if (!item) return;
+    e.preventDefault();
+    readImage(item.getAsFile());
+  });
+  const dz = $('#dropZone');
+  dz.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); dz.classList.add('over'); } });
+  dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+  dz.addEventListener('drop', e => {
+    dz.classList.remove('over');
+    const f = e.dataTransfer.files[0];
+    if (!f) return;
+    e.preventDefault();
+    readImage(f);
+  });
+
   let lastAna = null;
   function runAnalyze() {
     const text = $('#deBai').value;
