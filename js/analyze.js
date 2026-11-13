@@ -44,8 +44,27 @@ window.Analyzer = (() => {
     const oy = Math.max(wy / 2 + 26, d / 2 + 34), on = Math.max(wn / 2 + 26, d / 2 + 34);
     return { oy: -oy, on, w: 2 * Math.max(oy + wy / 2, on + wn / 2) };
   }
+  // Chuỗi if / else if / else: xếp bậc thang dọc cho gọn.
+  const isChain = s => s.t === 'if' && s.no.length === 1 && s.no[0].t === 'if';
+  function chainOf(s) {
+    const conds = [];
+    let cur = s;
+    while (cur && cur.t === 'if') {
+      conds.push(cur);
+      cur = cur.no.length === 1 && cur.no[0].t === 'if' ? cur.no[0] : null;
+    }
+    return { conds, last: conds[conds.length - 1].no };
+  }
+  function chainGeo(s) {
+    const { conds, last } = chainOf(s);
+    const dw = Math.max(...conds.map(c => sz('dec', c.cond).w));
+    const yw = Math.max(0, ...conds.map(c => width(c.yes)));
+    const off = dw / 2 + 50 + yw / 2;
+    return { conds, last, off, w: 2 * (off + yw / 2) + 60 };
+  }
   function swidth(s) {
     if (s.t === 'io' || s.t === 'proc') return sz(s.t, s.text).w;
+    if (isChain(s)) return chainGeo(s).w;
     if (s.t === 'if') return ifOff(s).w;
     if (s.t === 'for') return Math.max(sz('proc', s.init).w, sz('dec', s.cond).w, width(s.body), sz('proc', s.step).w) + 90;
     return Math.max(sz('dec', s.cond).w, width(s.body)) + 90;
@@ -75,6 +94,29 @@ window.Analyzer = (() => {
           link(exits, n.id);
           exits = [{ from: n.id }];
           y += sz(s.t, s.text).h + GAP;
+        } else if (isChain(s)) {
+          // Khối thoi xếp dọc. Đúng: rẽ phải ra khối kết quả. Sai: đi thẳng xuống khối thoi kế.
+          const g = chainGeo(s);
+          const done = [];
+          for (const c of g.conds) {
+            const dh = sz('dec', c.cond).h;
+            const d = add('dec', c.cond, x, y);
+            link(exits, d.id);
+            let yy = y, hh = dh;
+            const f = c.yes[0];
+            if (f && (f.t === 'io' || f.t === 'proc')) yy = y + dh / 2 - sz(f.t, f.text).h / 2;
+            const r = c.yes.length ? place(c.yes, x + g.off, yy, [{ from: d.id, label: 'Đúng' }]) : { exits: [{ from: d.id, label: 'Đúng' }], y: yy };
+            hh = Math.max(dh, r.y - GAP - y);
+            done.push(...r.exits.map(ex => ({ ...ex, fs: 'right', ts: 'right' })));
+            exits = [{ from: d.id, label: 'Sai' }];
+            y += hh + GAP;
+          }
+          if (g.last.length) {
+            const r = place(g.last, x, y, exits);
+            exits = r.exits;
+            y = r.y;
+          }
+          exits = [...done, ...exits];
         } else if (s.t === 'if') {
           const d = add('dec', s.cond, x, y);
           link(exits, d.id);
@@ -129,7 +171,16 @@ window.Analyzer = (() => {
       for (const s of list) {
         if (s.t === 'io') out.push(`${pre}Khối Nhập/Xuất (bình hành): ${short(s.text)}.`);
         else if (s.t === 'proc') out.push(`${pre}Khối Xử lý (chữ nhật): ${short(s.text)}.`);
-        else if (s.t === 'if') {
+        else if (isChain(s)) {
+          const { conds, last } = chainOf(s);
+          out.push(`${pre}Xếp ${conds.length} khối Điều kiện (thoi) thành một cột dọc, xét từ trên xuống:`);
+          conds.forEach((c, i) => {
+            out.push(`${pre}   Khối thoi ${i + 1}: ${c.cond} ?`);
+            out.push(`${pre}      → Đúng (rẽ phải): ${brief(c.yes)}.`);
+            out.push(`${pre}      → Sai (đi xuống): ${i < conds.length - 1 ? 'tới khối thoi ' + (i + 2) : last.length ? brief(last) : 'đi tiếp'}.`);
+          });
+          out.push(`${pre}   Các nhánh gom về một đường rồi đi tiếp.`);
+        } else if (s.t === 'if') {
           out.push(`${pre}Khối Điều kiện (thoi): ${s.cond} ?`);
           out.push(`${pre}   → Nhánh Đúng:${s.yes.length ? '' : ' đi thẳng xuống khối tiếp theo.'}`);
           walk(s.yes, pre + '      ');
@@ -268,6 +319,34 @@ window.Analyzer = (() => {
   const pick = (vs, n, def) => (vs.length >= n ? vs.slice(0, n) : def);
   const has = (p, re) => re.test(p);
   const range = p => { const m = p.match(/tu\s+(-?\d+)\s+(?:den|toi)\s+(-?\d+)/); return m ? [m[1], m[2]] : null; };
+
+  // Đọc các mức xếp loại trong đề, ví dụ "Học lực giỏi: 9 > điểm >= 8".
+  // Trả về [{ name, low: { op, n } | null }] theo thứ tự trong đề.
+  function gradeTiers(orig) {
+    const p = plainOf(orig); // cùng độ dài với orig
+    const OP = '(?:>=|<=|=>|=<|≥|≤|>|<)';
+    const NUM = '\\d+(?:[.,]\\d+)?';
+    const re = new RegExp(`([a-z][a-z ]{0,30}?)\\s*:\\s*((?:${NUM}\\s*${OP}\\s*)?diem(?:\\s*${OP}\\s*${NUM})?)`, 'g');
+    const norm = op => ({ '≥': '>=', '≤': '<=', '=>': '>=', '=<': '<=' }[op] || op);
+    const out = [];
+    let m;
+    while ((m = re.exec(p))) {
+      let name = orig.substr(m.index, m[1].length).trim()
+        .replace(/^(học\s+lực|hoc\s+luc|xếp\s+loại|xep\s+loai|loại|loai|mức|muc)\s+/i, '').trim();
+      if (!name) continue;
+      name = name[0].toUpperCase() + name.slice(1).toLowerCase();
+      const expr = m[2];
+      const at = expr.indexOf('diem');
+      const L = expr.slice(0, at).match(new RegExp(`(${NUM})\\s*(${OP})\\s*$`));
+      const R = expr.slice(at + 4).match(new RegExp(`^\\s*(${OP})\\s*(${NUM})`));
+      const num = s => parseFloat(s.replace(',', '.'));
+      let low = null;
+      if (L) { const op = norm(L[2]); if (op === '<=') low = { op: '>=', n: num(L[1]) }; else if (op === '<') low = { op: '>', n: num(L[1]) }; }
+      if (R) { const op = norm(R[1]); if (op === '>=' || op === '>') low = { op, n: num(R[2]) }; }
+      if (!out.some(t => t.name === name)) out.push({ name, low });
+    }
+    return out;
+  }
 
   const PATTERNS = [
     {
@@ -417,16 +496,36 @@ window.Analyzer = (() => {
     {
       id: 'xep-loai', name: 'Xếp loại điểm',
       test: p => has(p, /xep\s+loai|hoc\s+luc|loai\s+gioi|gioi.*kha/),
-      make: () => ({
-        given: ['diem: điểm trung bình (0 đến 10)'],
-        asked: ['Xếp loại: Giỏi, Khá, Trung bình hoặc Yếu'],
-        floats: ['diem'],
-        prog: [io('Nhập diem'),
-          IF('diem >= 8', [io('Xuất "Giỏi"')], [
-            IF('diem >= 6.5', [io('Xuất "Khá"')], [
-              IF('diem >= 5', [io('Xuất "Trung bình"')], [io('Xuất "Yếu"')])])])],
-        note: 'Mốc điểm lấy theo cách thường dùng. Nếu đề cho mốc khác, sửa lại số trong khối thoi.'
-      })
+      make: (p, vs, low, orig) => {
+        const tiers = gradeTiers(orig);
+        if (tiers.length >= 2) {
+          // Mốc lấy từ đề: xét từ mốc cao xuống thấp, loại không có mốc dưới là nhánh "còn lại".
+          const withLow = tiers.filter(t => t.low).sort((a, b) => b.low.n - a.low.n);
+          const rest = tiers.find(t => !t.low);
+          let tail = rest ? [io(`Xuất "${rest.name}"`)] : [];
+          for (let i = withLow.length - 1; i >= 0; i--) {
+            const t = withLow[i];
+            tail = [IF(`diem ${t.low.op} ${t.low.n}`, [io(`Xuất "${t.name}"`)], tail)];
+          }
+          return {
+            given: [`diem: điểm của sinh viên${/0\s*(-|đến|den)\s*10/i.test(orig) ? ' (0 đến 10)' : ''}`],
+            asked: [`Xếp loại: ${tiers.map(t => t.name).join(', ')}`],
+            floats: ['diem'],
+            prog: [io('Nhập diem'), ...tail],
+            note: `Đọc được ${tiers.length} mức từ đề. Xét từ mốc cao xuống thấp: đã qua nhánh Sai của mốc trên thì chắc chắn điểm nhỏ hơn mốc đó, nên mỗi khối thoi chỉ cần so mốc dưới.`
+          };
+        }
+        return {
+          given: ['diem: điểm trung bình (0 đến 10)'],
+          asked: ['Xếp loại: Giỏi, Khá, Trung bình hoặc Yếu'],
+          floats: ['diem'],
+          prog: [io('Nhập diem'),
+            IF('diem >= 8', [io('Xuất "Giỏi"')], [
+              IF('diem >= 6.5', [io('Xuất "Khá"')], [
+                IF('diem >= 5', [io('Xuất "Trung bình"')], [io('Xuất "Yếu"')])])])],
+          note: 'Đề không ghi rõ mốc điểm nên dùng mốc thường gặp. Nếu đề cho mốc khác, sửa lại số trong khối thoi.'
+        };
+      }
     },
     {
       id: 'max3', weak: true, name: 'Tìm số lớn nhất / nhỏ nhất trong 3 số',
@@ -665,7 +764,7 @@ window.Analyzer = (() => {
     // Đề tự viết "nếu ... thì ..." thì đọc theo câu chữ, trừ khi là dạng bài rõ ràng.
     const hasIf = /\bneu\b.+\bthi\b/.test(plain);
     const pat = PATTERNS.find(P => (!P.weak || !hasIf) && P.test(plain, vs, low));
-    const r = pat ? pat.make(plain, vs, low) : generic(orig, plain, vs);
+    const r = pat ? pat.make(plain, vs, low, orig) : generic(orig, plain, vs);
     return {
       pattern: pat ? pat.name : null,
       given: r.given, asked: r.asked, note: r.note || '', found: r.found || [],

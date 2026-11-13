@@ -97,7 +97,16 @@ window.FC = (() => {
         P.push([mx, p[1]], [mx, q[1]]);
       }
       P.push(q);
-      edges.push({ e, P, ss });
+      edges.push({ e, P, ss, lane: ss === ts && ss !== 'top' && ss !== 'bottom' ? ss + '>' + t.id : null });
+    }
+    // Các mũi tên cùng gom vào một cạnh của một khối thì đi chung một đường dọc.
+    const groups = new Map();
+    for (const E of edges) if (E.lane) (groups.get(E.lane) || groups.set(E.lane, []).get(E.lane)).push(E);
+    for (const [key, list] of groups) {
+      if (list.length < 2) continue;
+      const xs = list.map(E => E.P[1][0]);
+      const x = key.startsWith('left') ? Math.min(...xs) : Math.max(...xs);
+      for (const E of list) { E.P[1][0] = x; E.P[2][0] = x; }
     }
     return { boxes, edges };
   }
