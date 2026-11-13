@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lưu Đồ C</title>
+  <meta name="description" content="Học vẽ lưu đồ (flowchart) cho ngôn ngữ C: bài hướng dẫn, phân tích đề bài và bảng vẽ có kiểm tra lỗi.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a1220'/%3E%3Cpath d='M16 5 27 16 16 27 5 16z' fill='none' stroke='%234fdcff' stroke-width='2.5'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Saira:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=5">
+</head>
+<body>
+  <header class="top">
+    <a class="logo" href="#huong-dan"><span class="mark">◇</span><span class="txt"> Lưu Đồ C</span></a>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="huong-dan">Hướng dẫn</button>
+      <button role="tab" data-tab="phan-tich">Phân tích đề</button>
+      <button role="tab" data-tab="ve">Bảng vẽ</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Hướng dẫn -->
+    <section id="tab-huong-dan" class="view learn">
+      <aside class="lesson-list" id="lessonList" aria-label="Danh sách bài"></aside>
+      <article class="lesson" id="lesson"></article>
+    </section>
+
+    <!-- Phân tích đề -->
+    <section id="tab-phan-tich" class="view analyze">
+      <div class="ana-input">
+        <h1>Phân tích đề bài</h1>
+        <p class="muted">Dán đề bài vào đây. Trang sẽ tìm: đề cho gì, hỏi gì, có những nhánh nào, có lặp không, rồi gợi ý cách vẽ lưu đồ.</p>
+        <textarea id="deBai" rows="4" placeholder="Ví dụ: Nhập vào một số nguyên n. Kiểm tra n là số chẵn hay số lẻ."></textarea>
+        <div class="row">
+          <button class="primary" id="btnAnalyze">Phân tích đề</button>
+          <span class="muted small">Phân tích bằng từ khóa, chạy ngay trên máy bạn. Đề lạ thì kết quả chỉ là khung gợi ý.</span>
+        </div>
+        <div class="examples"><span class="muted small">Thử đề mẫu:</span><div id="exampleList"></div></div>
+      </div>
+      <div id="anaResult" class="ana-result"></div>
+    </section>
+
+    <!-- Bảng vẽ -->
+    <section id="tab-ve" class="view draw">
+      <div class="toolbar">
+        <div class="group" aria-label="Thêm khối">
+          <button data-add="term" title="Bắt đầu / Kết thúc"><svg viewBox="0 0 40 20"><rect x="2" y="3" width="36" height="14" rx="7"/></svg>Bắt đầu/Kết thúc</button>
+          <button data-add="io" title="Nhập / Xuất"><svg viewBox="0 0 40 20"><polygon points="8,3 38,3 32,17 2,17"/></svg>Nhập/Xuất</button>
+          <button data-add="proc" title="Xử lý"><svg viewBox="0 0 40 20"><rect x="3" y="3" width="34" height="14" rx="1"/></svg>Xử lý</button>
+          <button data-add="dec" title="Điều kiện"><svg viewBox="0 0 40 20"><polygon points="20,1 38,10 20,19 2,10"/></svg>Điều kiện</button>
+        </div>
+        <div class="group">
+          <button id="btnConnect" aria-pressed="false">Nối mũi tên</button>
+          <button id="btnUndo">Hoàn tác</button>
+          <button id="btnDel">Xóa mục chọn</button>
+        </div>
+        <div class="group">
+          <button class="primary" id="btnCheck">Kiểm tra</button>
+          <select id="tpl" aria-label="Mở lưu đồ mẫu"><option value="">Mở mẫu…</option></select>
+          <button id="btnFit">Xem toàn bộ</button>
+          <button id="btnZoomOut" aria-label="Thu nhỏ">−</button>
+          <button id="btnZoomIn" aria-label="Phóng to">+</button>
+          <button id="btnPng">Tải ảnh PNG</button>
+          <button id="btnClear">Xóa hết</button>
+        </div>
+        <label class="auto"><input type="checkbox" id="autoLink" checked> Tự nối mũi tên từ khối đang chọn</label>
+      </div>
+      <div class="status" id="status" aria-live="polite"></div>
+      <div class="work">
+        <div class="canvas-wrap"><svg id="canvas" aria-label="Bảng vẽ lưu đồ"></svg></div>
+        <aside class="panel" id="panel"></aside>
+      </div>
+    </section>
+  </main>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="data/lessons.js?v=5"></script>
+  <script src="data/examples.js?v=5"></script>
+  <script src="js/chart.js?v=5"></script>
+  <script src="js/analyze.js?v=5"></script>
+  <script src="js/app.js?v=5"></script>
+</body>
+</html>
